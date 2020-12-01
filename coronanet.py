@@ -5,12 +5,46 @@ import numpy as np
 import math
 from datetime import datetime, date, timedelta
 import plotly.graph_objects as go
+from colour import Color
+
+import random
 
 
 THIN_EDGE = 0.3
 THICK_EDGE = 3
+MIN_R_VALUE = 0
+MAX_R_VALUE = 3
+
+N_COLORS = 3
+COLORS = list(Color("green").range_to(Color("red"), N_COLORS))
+COLORSCALE = [((i / N_COLORS), color.get_hex()) for i, color in enumerate(COLORS)]
+
+R_VALUES = {
+	'Baden-Wuerttemberg': random.uniform(0, 3),
+	'Bremen': random.uniform(0, 3),
+ 	'Mecklenburg-Vorpommern': random.uniform(0, 3),
+	'Bavaria': random.uniform(0, 3),
+	'Lower Saxony': random.uniform(0, 3),
+	'North Rhine-Westphalia': random.uniform(0, 3),
+	'Saxony-Anhalt': random.uniform(0, 3),
+	'Hamburg': random.uniform(0, 3),
+	'Schleswig-Holstein': random.uniform(0, 3),
+	'Hesse': random.uniform(0, 3),
+	'Rheinland-Pfalz': random.uniform(0, 3),
+	'Saarland': random.uniform(0, 3),
+	'Saxony': random.uniform(0, 3),
+	'Thuringia': random.uniform(0, 3),
+	'Berlin': random.uniform(0, 3),
+	'Brandenburg': random.uniform(0, 3),
+	'Lombardy': random.uniform(0, 3)
+}
+
+R_VALUES['Countrywide'] = np.mean(list(R_VALUES.values()))
 
 def get_data():
+	"""
+		gets 'live' data from github
+	"""
 	country="Germany"
 	url="https://raw.githubusercontent.com/saudiwin/corona_tscs/master/data/CoronaNet/data_country/coronanet_release/coronanet_release_{0}.csv".format(country)
 	data=pd.read_csv(url, encoding='iso-8859-1')
@@ -23,15 +57,66 @@ def get_unique_vals(data, col = "type"):
 	"""
 	return getattr(getattr(data,col), 'unique')()
 
+def get_color_for_r_value(r_value):
+	"""
+		for given r_value it returns corresponding color
+	"""
+	old_min = MIN_R_VALUE
+	old_max = MAX_R_VALUE
+	new_min = 0
+	new_max = N_COLORS - 1
+	idx = (((r_value - old_min) * (new_max - new_min)) / (old_max - old_min)) + new_min
+	return int(round(idx))
+
+def get_node_attr_by_key(nodes, key, attr):
+	"""
+		returns given attribute of element in nodes (=filtered by key)
+	"""
+	possible_nodes = [node for node in nodes if node['key']==key]
+	if len(possible_nodes):
+		return possible_nodes[0][attr]
+	else:
+		return None
+
+def clean_bundeslaender(data):
+	#data_all = data[(data.target_province.isin(['-', np.nan]))]
+	data['target_province'] = data['target_province'].str.replace(';','')
+	data['target_province'] = data['target_province'].str.replace(r'^-$','Countrywide')
+	data[(data.target_province.isin(['-', np.nan]))] = data[(data.target_province.isin(['-', np.nan]))].assign(target_province = 'Countrywide')
+
+	# MANUAL CLEANING
+	# first Step: add missing rows
+	for idx, row in data.iterrows():
+		# seperate "Berlin Brandenburg" into each
+		if row['target_province'] == "Berlin Brandenburg":
+			row["target_province"] = "Berlin"
+			data.append(row)
+			row["target_province"] = "Brandenburg"
+			data.append(row)
+		# seperate "Berlin Brandenburg" into each
+		elif row['target_province'] == "Bayern Baden-Württemberg":
+			row["target_province"] = "Bavaria"
+			data.append(row)
+			row["target_province"] = "Baden-Wuerttemberg"
+			data.append(row)
+		elif row['target_province'] == "Gütersloh, Warendorf":
+			row["target_province"] = "North Rhine-Westphalia"
+			data.append(row)
+
+
+	# second Step: remove rows
+	# Data = All Data without having one of the values in brackets in the "taget_province" column
+	# "~" is like a not, so the filter afterwards is reversed
+	data = data[~(data.target_province.isin(["Berlin Brandenburg", "Bayern Baden-Württemberg", "Gütersloh, Warendorf"]))]
+
+	return data
+
 def create_graph():
 	data = get_data()
-	#data_all = data[(data.target_province.isin(['-', np.nan]))]
-	#data = data[~(data.target_province.isin(['-', np.nan]))]
+	data = clean_bundeslaender(data)
+
 	u_provinces = get_unique_vals(data, 'target_province')
 	u_types = get_unique_vals(data, 'type')
-	#append nanrows to data
-	#for province in u_provinces:
-	#	data = data.append(data_all.assign(target_province=province))
 
 	data['date_start'] = pd.to_datetime(data['date_start']).dt.date
 	data['date_end'] = pd.to_datetime(data['date_end']).dt.date
@@ -50,74 +135,44 @@ def create_graph():
 #	ended_within_2w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
 #	ended_2w_4w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
 
-	#add edges
-	g.add_weighted_edges_from(
-		[(row['target_province'], row['type'], 0.2) for idx, row in started_within_last_2w.iterrows()],
-		weight='weight',
-		attr={'width': THIN_EDGE,'color': 'black', 'style': 'dashed'}
-	)
+	##############
+	### PLOTLY ###
+	##############
 
-	g.add_weighted_edges_from(
-                [(row['target_province'], row['type'], 0.2) for idx, row in ongoing.iterrows()],
-                weight='weight',
-                attr={'width': THIN_EDGE,'color': 'black', 'style': 'solid'}
-        )
+	### NODES
+	nodes = []
+	for i,node in enumerate(u_provinces):
+		x = 0.35
+		y = i
+		r_value = R_VALUES[node]
+		nodes.append({
+			'key': node,
+			'x': x,
+			'y': y,
+			'textpos': "middle left",
+			'r_value': r_value,
+			'color': get_color_for_r_value(r_value),
+			'hovertext': 'R-Value: {0}'.format(r_value)
+		})
 
-	g.add_weighted_edges_from(
-                [(row['target_province'], row['type'], 0.2) for idx, row in ongoing_4w.iterrows()],
-                weight='weight',
-                attr={'width': THICK_EDGE,'color': 'black', 'style': 'solid'}
-        )
-
-	pos = {node:[0.35, i] for i,node in enumerate(u_provinces)}
-	pos.update({node:[0.65, i] for i,node in enumerate(u_types)})
-	nx.draw_networkx_nodes(g, pos, node_size=50, node_color="red")
-	nx.draw_networkx_edges(
-				g,
-				pos,
-				edge_cmap = plt.cm.Blues,
-				width=[g[u][v]['attr']['width'] for u, v in g.edges],
-				edge_color=[g[u][v]['attr']['color'] for u, v in g.edges],
-				style=[g[u][v]['attr']['style'] for u, v in g.edges],
-				alpha=0.5
-	)
-	for p in pos:  # raise text positions
-   		pos[p][0] += 0.05 if pos[p][0] < 0.5 else -0.05
-	nx.draw_networkx_labels(g, pos)
-
-	plt.show()
-	return
-	edge_x = []
-	edge_y = []
-	for edge in g.edges():
-		if 'pos' in g.nodes[edge[0]]:
-			print('test12345')
-			x0, y0 = g.nodes[edge[0]]['pos']
-			x1, y1 = g.nodes[edge[1]]['pos']
-			edge_x.append(x0)
-			edge_x.append(x1)
-			edge_x.append(None)
-			edge_y.append(y0)
-			edge_y.append(y1)
-			edge_y.append(None)
-
-	edge_trace = go.Scatter(
-		x=edge_x, y=edge_y,
-		line=dict(width=0.5, color='#888'),
-		hoverinfo='none',
-		mode='lines')
-
-	node_x = []
-	node_y = []
-	for node in g.nodes():
-		if 'pos' in g.nodes[node]:
-			x, y = g.nodes[node]['pos']
-			node_x.append(x)
-			node_y.append(y)
+	for i,node in enumerate(u_types):
+		x = 0.65
+		y = i * (len(u_provinces) / len(u_types))
+		nodes.append({
+			'key': node,
+			'x': x,
+			'y': y,
+			'textpos': "middle right",
+			'color': "grey",
+			'hovertext': 'R-Value: {0}'.format(r_value)
+		})
 
 	node_trace = go.Scatter(
-		x=node_x, y=node_y,
-		mode='markers',
+		x = [node['x'] for node in nodes],
+		y = [node['y'] for node in nodes],
+		text = [node['key'] for node in nodes], # Labels
+		textposition = [node['textpos'] for node in nodes],
+		mode='markers+text',
 		hoverinfo='text',
 		marker=dict(
 			showscale=True,
@@ -125,46 +180,116 @@ def create_graph():
 			#'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
 			#'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
 			#'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-			colorscale='YlGnBu',
+			colorscale=COLORSCALE,
 			reversescale=True,
-			color=[],
-			size=10,
+			color = [node['color'] for node in nodes],
+			size=30,
 			colorbar=dict(
-			    thickness=15,
-			    title='Node Connections',
-			    xanchor='left',
-			    titleside='right'
+				thickness=15,
+				title='R Value',
+				xanchor='left',
+				titleside='right'
 			),
-			line_width=2))
+			line_width=2)
+		)
 
-	node_adjacencies = []
-	node_text = []
-	for node, adjacencies in enumerate(g.adjacency()):
-	    node_adjacencies.append(len(adjacencies[1]))
-	    node_text.append('# of connections: '+str(len(adjacencies[1])))
+	### EDGES
+	edges = []
 
-	node_trace.marker.color = node_adjacencies
-	node_trace.text = node_text
+	# started within last 2w
 
-	fig = go.Figure(data=[edge_trace, node_trace],
+	edge_x = []
+	edge_y = []
+	for idx, row in started_within_last_2w.iterrows():
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+
+	edges.append(go.Scatter(
+		x=edge_x, y=edge_y,
+		line=dict(width=0.5, color='#888'),
+		hoverinfo='none',
+		mode='lines')
+	)
+
+	# ongoing
+
+	edge_x = []
+	edge_y = []
+	for idx, row in ongoing.iterrows():
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+
+	edges.append(go.Scatter(
+		x=edge_x, y=edge_y,
+		line=dict(width=0.5, color='#888'),
+		hoverinfo='none',
+		mode='lines')
+	)
+
+	# ongoing_4w
+
+	edge_x = []
+	edge_y = []
+	for idx, row in ongoing_4w.iterrows():
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+
+	edges.append(go.Scatter(
+		x=edge_x, y=edge_y,
+		line=dict(width=1, color='#888'),
+		hoverinfo='none',
+		mode='lines')
+	)
+
+	# node_adjacencies = []
+	# node_text = []
+	# for node, adjacencies in enumerate(g.adjacency()):
+	#     node_adjacencies.append(len(adjacencies[1]))
+	#     node_text.append('# of connections: '+str(len(adjacencies[1])))
+	#
+	# node_trace.marker.color = node_adjacencies
+	# node_trace.text = node_text
+
+	fig = go.Figure(data=[*edges, node_trace],
              layout=go.Layout(
-                title='<br>Network graph made with Python',
+                title='CoronaNet Visualization',
                 titlefont_size=16,
                 showlegend=False,
                 hovermode='closest',
                 margin=dict(b=20,l=5,r=5,t=40),
                 annotations=[ dict(
-                    text="Python code: <a href='https://plotly.com/ipython-notebooks/network-graphs/'> https://plotly.com/ipython-notebooks/network-graphs/</a>",
+                    text="Data: <a href='https://www.coronanet-project.org/'> Coronanet Project</a>",
                     showarrow=False,
                     xref="paper", yref="paper",
                     x=0.005, y=-0.002 ) ],
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                 )
-	print('test1')
 	fig.show()
-	print('test2')
-
 
 if __name__ == '__main__':
 	create_graph()
