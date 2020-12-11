@@ -44,7 +44,46 @@ R_VALUES = {
 
 R_VALUES['Countrywide'] = np.mean(list(R_VALUES.values()))
 
+def correct_data_with_days(data):
+    n_data = data
+    for ind, row in data.iterrows():
+        if(ind < len(data)-2):
+            if row['Bundesland']== data['Bundesland'][ind+1]:
+                while True:
+                    if row['Meldedatum'] < data['Meldedatum'][ind+1] - timedelta(days=1):
+                        row['Meldedatum'] = row['Meldedatum'] + timedelta(days=1)
+                        row['AnzahlFall'] = 0
+                        n_data= n_data.append(row).sort_index()
+                    else: 
+                        break
+    #print(n_data)
+    return n_data.sort_values(['Bundesland','Meldedatum']).reset_index(drop=True)
+				
+def get_cases_7_days(x, data):
+	con1 = data['Meldedatum'] <= x['Meldedatum']
+	con2 = data['Meldedatum'] > x['Meldedatum'] - timedelta(days=7)
+	con3 = data['Bundesland'] == x['Bundesland']
+	return data[con1 & con2 & con3]['AnzahlFall'].sum()
 
+
+def get_cases_7_days_100k(x, data):
+	ewz = data.loc[x['Bundesland']]['LAN_ew_EWZ']
+	res = (x["AnzahlFall_7_tage_absolut"] * 100000) / ewz
+	return res
+
+def get_cases_s_4(x, data):
+	con3 = data['Meldedatum'] >=x['Meldedatum'] - timedelta(days=10)
+	con4 = data['Meldedatum'] <= x['Meldedatum'] - timedelta(days=4)
+	con5 = data['Bundesland'] == x['Bundesland']
+	return data[con3 & con4 & con5 ]['AnzahlFall'].sum()
+	
+def get_r_value_intervall_7_days(x):
+	s_t = x['AnzahlFall_7_tage_absolut'] 
+	s_t_4 = x['AnzahlFall_s_4']
+	if s_t_4 == 0: 
+		return 0
+	else: 
+		return s_t / s_t_4
 def get_cases_data_json():
 	response = requests.get('https://services7.arcgis.com/mOBPykOjAyBO2ZKk/arcgis/rest/services/RKI_COVID19/FeatureServer/0/query?where=1%3D1&outFields=Bundesland,AnzahlFall,Meldedatum&outSR=800000000&f=json')
 	data_json = json.loads(response.text)['features']
@@ -62,6 +101,12 @@ def get_cases_data_json():
 	#plt.show()
 	print(data.info())
 	print(len(a))
+def get_bundesland_pop():
+	bundesland_pop_data = pd.read_csv("bundesland.csv", 
+	 								encoding='utf8',
+	 								usecols=['LAN_ew_GEN', 'LAN_ew_EWZ'], index_col='LAN_ew_GEN')
+	bundesland_pop_data.loc['Countrywide']= bundesland_pop_data.sum(numeric_only=True, axis=0)
+	return bundesland_pop_data
 
 def get_cases_data_csv():
 	url = "https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.csv"
@@ -71,10 +116,9 @@ def get_cases_data_csv():
 					 parse_dates=['Meldedatum'])
 	
 	bundesland_cases = data.groupby(['Bundesland', 'Meldedatum'], as_index = False)['AnzahlFall'].sum()
-	bundesland_cases = bundesland_cases.set_index("Meldedatum").sort_index()
-	#TODO: r-values calculation
-	#bundesland_cases['r_value'] = bundesland_cases['AnzahlFall'].apply(lambda x: (bundesland_cases.iloc[-4:-1].sum(axis=1)) / (bundesland_cases.iloc[1:4].sum(axis=1)))
-	#print(bundesland_cases.head())
+	bundesland_cases = bundesland_cases.sort_values(['Bundesland', 'Meldedatum'])
+	bundesland_cases['AnzahlFall_7_tage_absolut'] = bundesland_cases.apply(lambda x: get_cases_7_days(x, bundesland_cases), axis=1)
+	bundesland_cases['AnzahlFall_s_4'] = bundesland_cases.apply(lambda x: get_cases_s_4(x,bundesland_cases), axis = 1)
 	return bundesland_cases
 
 def get_data():
@@ -84,7 +128,7 @@ def get_data():
 	country="Germany"
 	url="https://raw.githubusercontent.com/saudiwin/corona_tscs/master/data/CoronaNet/data_country/coronanet_release/coronanet_release_{0}.csv".format(country)
 	data=pd.read_csv(url, encoding='iso-8859-1')
-	#data["target_province"] = data["target_province"].str.decode('iso-8859-1').str.encode('utf-8')
+	#data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
 	return data
 
 def get_unique_vals(data, col = "type"):
@@ -108,8 +152,8 @@ def get_size_for_number_of_cases(number_of_cases):
 	"""
 		for given number_of_cases it returns size of node
 	"""
+	return (int(round(number_of_cases / 50)) +1)*10
 
-	return (int(round(number_of_cases / 1000)) +1)*10
 def get_node_attr_by_key(nodes, key, attr):
 	"""
 		returns given attribute of element in nodes (=filtered by key)
@@ -120,56 +164,59 @@ def get_node_attr_by_key(nodes, key, attr):
 	else:
 		return None
 
+
 def clean_bundeslaender(data):
-	#data_all = data[(data.target_province.isin(['-', np.nan]))]
-	data['target_province'] = data['target_province'].str.replace(';','')
-	data['target_province'] = data['target_province'].str.replace(r'^-$','Countrywide')
-	data[(data.target_province.isin(['-', np.nan]))] = data[(data.target_province.isin(['-', np.nan]))].assign(target_province = 'Countrywide')
+	#data_all = data[(data.province.isin(['-', np.nan]))]
+	data['province'] = data['province'].str.replace(';','')
+	data['province'] = data['province'].str.replace(r'^-$','Countrywide')
+	data[(data.province.isin(['-', np.nan]))] = data[(data.province.isin(['-', np.nan]))].assign(province = 'Countrywide')
 
 	# MANUAL CLEANING
 	# first Step: add missing rows
 	for idx, row in data.iterrows():
 		# seperate "Berlin Brandenburg" into each
-		if row['target_province'] == "Berlin Brandenburg":
-			row["target_province"] = "Berlin"
+		if row['province'] == "Berlin Brandenburg":
+			row["province"] = "Berlin"
 			data.append(row)
-			row["target_province"] = "Brandenburg"
+			row["province"] = "Brandenburg"
 			data.append(row)
 		# seperate "Berlin Brandenburg" into each
-		elif row['target_province'] == "Bayern Baden-Württemberg":
-			row["target_province"] = "Bavaria"
+		elif row['province'] == "Bayern Baden-Württemberg":
+			row["province"] = "Bavaria"
 			data.append(row)
-			row["target_province"] = "Baden-Wuerttemberg"
+			row["province"] = "Baden-Wuerttemberg"
 			data.append(row)
-		elif row['target_province'] == "Gütersloh, Warendorf":
-			row["target_province"] = "North Rhine-Westphalia"
+		elif row['province'] == "Gütersloh, Warendorf":
+			row["province"] = "North Rhine-Westphalia"
 			data.append(row)
 
 
 	# second Step: remove rows
 	# Data = All Data without having one of the values in brackets in the "taget_province" column
 	# "~" is like a not, so the filter afterwards is reversed
-	data = data[~(data.target_province.isin(["Berlin Brandenburg","Bayern Baden-Württemberg", "Gütersloh, Warendorf", "Lombardy"]))]
+	data = data[~(data.province.isin(["Berlin Brandenburg","Bayern Baden-Württemberg", "Gütersloh, Warendorf", "Lombardy"]))]
 
 	return data
 
-def clean_bundeslaender_cases(cases):
-	cases = cases.replace(to_replace=r'^Baden-Württemberg', value='Baden-Wuerttemberg', regex=True)
-	cases =cases.replace(to_replace=r'^Thüringen', value='Thuringia', regex=True)
-	cases = cases.replace(to_replace=r'^Bayern', value='Bavaria', regex=True)
-	cases = cases.replace(to_replace=r'^Niedersachsen', value='Lower Saxony', regex=True)
-	cases = cases.replace(to_replace=r'^Sachsen', value='Saxony', regex=True)
-	cases = cases.replace(to_replace=r'^Nordrhein-Westfalen', value='North Rhine-Westphalia', regex=True)
-	cases = cases.replace(to_replace=r'^Hessen', value='Hesse', regex=True)
-	return cases
+def clean_bundeslaender_2(data):
+	data = data.replace(to_replace=r'^Baden-Württemberg', value='Baden-Wuerttemberg', regex=True)
+	data = data.replace(to_replace=r'^Thüringen', value='Thuringia', regex=True)
+	data = data.replace(to_replace=r'^Bayern', value='Bavaria', regex=True)
+	data = data.replace(to_replace=r'^Niedersachsen', value='Lower Saxony', regex=True)
+	data = data.replace(to_replace=r'^Sachsen', value='Saxony', regex=True)
+	data = data.replace(to_replace=r'^Nordrhein-Westfalen', value='North Rhine-Westphalia', regex=True)
+	data = data.replace(to_replace=r'^Hessen', value='Hesse', regex=True)
+	return data
 def create_graph():
 	#all data
 	data = get_data()
 	data = clean_bundeslaender(data) #provinces and measure
 	
 	#get provinces and measure types
-	u_provinces = get_unique_vals(data, 'target_province')
+	u_provinces = get_unique_vals(data, 'province')
 	u_types = get_unique_vals(data, 'type')
+
+	#print(u_provinces)
 
 	data['date_start'] = pd.to_datetime(data['date_start']).dt.date
 	data['date_end'] = pd.to_datetime(data['date_end']).dt.date
@@ -188,13 +235,21 @@ def create_graph():
 #	ended_2w_4w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
 	
 	#get current cases of all province
-	cases = get_cases_data_csv() #provinces and cases
+	cases = get_cases_data_csv().set_index('Meldedatum') #provinces and cases
 	yesterday = date.today() - timedelta(days=2) #only the number of infections up to yesterday was recorded
 	cases = cases.loc['{0}-{1}-{2}'.format(yesterday.year, yesterday.month, yesterday.day)]
-	cases = clean_bundeslaender_cases(cases)
 	cases = cases.reset_index().set_index("Bundesland")
 	cases.loc['Countrywide']= cases.sum(numeric_only=True, axis=0)
-	
+	cases = cases.reset_index()
+	bundesland_pop_data = get_bundesland_pop()
+	bundesland_pop_data.loc['Countrywide'] = bundesland_pop_data.sum(numeric_only = True, axis = 0)
+	cases['AnzahlFall_7_tage_100k'] = cases.apply(lambda x: get_cases_7_days_100k(x, bundesland_pop_data), axis=1)
+	cases['R-Wert'] = cases.apply(lambda x: get_r_value_intervall_7_days(x), axis=1)
+	cases = clean_bundeslaender_2(cases)
+	cases = cases.reset_index(drop=True).set_index("Bundesland")
+	print(cases)
+
+
 	##############
 	### PLOTLY ###
 	##############
@@ -204,8 +259,8 @@ def create_graph():
 	for i,node in enumerate(u_provinces):
 		x = 0.35
 		y = i
-		r_value = R_VALUES[node]
-		num_of_infec = cases.loc[node]['AnzahlFall']
+		r_value = cases.loc[node]['R-Wert']
+		num_of_infec = cases.loc[node]['AnzahlFall_7_tage_100k']
 		nodes.append({
 			'key': node,
 			'x': x,
@@ -264,8 +319,8 @@ def create_graph():
 	edge_x = []
 	edge_y = []
 	for idx, row in started_within_last_2w.iterrows():
-		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
-		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="y")
 		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
 		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
 		edge_x.append(x0)
@@ -287,8 +342,8 @@ def create_graph():
 	edge_x = []
 	edge_y = []
 	for idx, row in ongoing.iterrows():
-		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
-		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="y")
 		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
 		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
 		edge_x.append(x0)
@@ -310,8 +365,8 @@ def create_graph():
 	edge_x = []
 	edge_y = []
 	for idx, row in ongoing_4w.iterrows():
-		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
-		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
+		x0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="x")
+		y0 = get_node_attr_by_key(nodes = nodes, key = row['province'], attr="y")
 		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
 		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
 		edge_x.append(x0)
