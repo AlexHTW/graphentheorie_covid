@@ -12,6 +12,8 @@ import requests
 import json
 import random
 
+import difflib
+
 
 THIN_EDGE = 0.3
 THICK_EDGE = 3
@@ -77,7 +79,7 @@ def get_cases_data_csv():
 	#print(bundesland_cases.head())
 	return bundesland_cases
 
-def get_data():
+def get_coronanet_data():
 	"""
 		gets 'live' data from github
 	"""
@@ -92,7 +94,7 @@ def get_unique_vals(data, col = "type"):
 		returns unique values of a column
 		call to (e.g.) data.type.unique()
 	"""
-	return getattr(getattr(data,col), 'unique')()
+	return getattr(getattr(data,col), 'unique')().tolist()
 
 def get_color_for_r_value(r_value):
 	"""
@@ -110,15 +112,31 @@ def get_size_for_number_of_cases(number_of_cases):
 	"""
 
 	return (int(round(number_of_cases / 1000)) +1)*10
-def get_node_attr_by_key(nodes, key, attr):
+def get_node_attr_by_key(nodes, key, attr, subkey=None):
 	"""
 		returns given attribute of element in nodes (=filtered by key)
 	"""
-	possible_nodes = [node for node in nodes if node['key']==key]
+	if not subkey:
+		possible_nodes = [node for node in nodes if node['key']==key]
+	else:
+		possible_nodes = [node for node in nodes if node['key']==key and node['subkey']==subkey]
 	if len(possible_nodes):
 		return possible_nodes[0][attr]
 	else:
 		return None
+
+def find_best_match(outlier, targetlist):
+	"""
+		returns best match (= most similar word) for outlier from target list
+	"""
+	hits = []
+	for i, word in enumerate(targetlist):
+		similarity = difflib.SequenceMatcher(None, outlier.lower(), word.lower()).ratio()
+		hits.append(similarity)
+
+	idx_max = max(range(len(hits)), key=hits.__getitem__) # Index of highest Value in hits
+
+	return targetlist[idx_max]
 
 def clean_bundeslaender(data):
 	#data_all = data[(data.target_province.isin(['-', np.nan]))]
@@ -128,6 +146,7 @@ def clean_bundeslaender(data):
 
 	# MANUAL CLEANING
 	# first Step: add missing rows
+	# ToDo: Speedup
 	for idx, row in data.iterrows():
 		# seperate "Berlin Brandenburg" into each
 		if row['target_province'] == "Berlin Brandenburg":
@@ -145,37 +164,58 @@ def clean_bundeslaender(data):
 			row["target_province"] = "North Rhine-Westphalia"
 			data.append(row)
 
-
 	# second Step: remove rows
 	# Data = All Data without having one of the values in brackets in the "taget_province" column
 	# "~" is like a not, so the filter afterwards is reversed
 	data = data[~(data.target_province.isin(["Berlin Brandenburg","Bayern Baden-Württemberg", "Gütersloh, Warendorf", "Lombardy"]))]
 
+	#iterate thru rows and set outliers of dictionary to most similar
+	# ToDo: Speedup -> e.g. np.apply_along_axis(lambda x: find_best_match(x) if x not in R_VALUES.keys() else x, 1, data['target_province'])
+	missmatches = []
+	for idx, row in data.iterrows():
+		if row['target_province'] not in list(R_VALUES.keys()):
+			missmatches.append(row['target_province'])
+			best_match = find_best_match(row['target_province'], list(R_VALUES.keys()))
+			row['target_province'] = best_match
+			data.append(row)
+	data = data[~(data.target_province.isin(list(set(missmatches))))]
+
 	return data
 
 def clean_bundeslaender_cases(cases):
 	cases = cases.replace(to_replace=r'^Baden-Württemberg', value='Baden-Wuerttemberg', regex=True)
-	cases =cases.replace(to_replace=r'^Thüringen', value='Thuringia', regex=True)
+	cases = cases.replace(to_replace=r'^Thüringen', value='Thuringia', regex=True)
 	cases = cases.replace(to_replace=r'^Bayern', value='Bavaria', regex=True)
 	cases = cases.replace(to_replace=r'^Niedersachsen', value='Lower Saxony', regex=True)
 	cases = cases.replace(to_replace=r'^Sachsen', value='Saxony', regex=True)
 	cases = cases.replace(to_replace=r'^Nordrhein-Westfalen', value='North Rhine-Westphalia', regex=True)
 	cases = cases.replace(to_replace=r'^Hessen', value='Hesse', regex=True)
 	return cases
-def create_graph():
+
+def create_graph(mode="absolute"):
+	if not mode in ['absolute', 'relative']:
+		raise ValueError("wrong mode!")
 	#all data
-	data = get_data()
+	data = get_coronanet_data()
 	data = clean_bundeslaender(data) #provinces and measure
+
+	data[(data.type_sub_cat.isin(['-', np.nan]))] = data[(data.type_sub_cat.isin(['-', np.nan]))].assign(type_sub_cat='Not further spezified')  # ToDo: nan values for subcats
 	
 	#get provinces and measure types
 	u_provinces = get_unique_vals(data, 'target_province')
+	u_provinces.sort() # sort reverse alphabetically
+	u_provinces.append(u_provinces.pop(u_provinces.index('Countrywide'))) # put countrywide to end of list
 	u_types = get_unique_vals(data, 'type')
+	u_subtypes = get_unique_vals(data, 'type_sub_cat')
+
+	normalized_unit_y_provinces = 1 / len(u_provinces)  # normalized unit y, so all provinces y-positions are evenly between 0 and 1
+	normalized_unit_y_types = 1 / len(u_types)  # normalized unit y, so all types y-positions are evenly between 0 and 1
+	print("y_prov einheitslänge: {0}".format(normalized_unit_y_provinces))
+	print("y_types einheitslänge: {0}".format(normalized_unit_y_types))
 
 	data['date_start'] = pd.to_datetime(data['date_start']).dt.date
 	data['date_end'] = pd.to_datetime(data['date_end']).dt.date
-	g = nx.Graph()
-	g.add_nodes_from(u_provinces, bipartite=0)
-	g.add_nodes_from(u_types, bipartite=1)
+
 	#generate current types
 	threshold_1w = date.today() - timedelta(days=7)
 	threshold_2w = date.today() - timedelta(days=14)
@@ -186,6 +226,7 @@ def create_graph():
 	ongoing_4w = data[(data.date_start < threshold_4w) & (data.date_end > threshold_2w)]
 #	ended_within_2w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
 #	ended_2w_4w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
+	currenttime_data = pd.concat([started_within_last_2w, ongoing, ongoing_4w], ignore_index=True, sort=False) # dataset including all the above datasets
 	
 	#get current cases of all province
 	cases = get_cases_data_csv() #provinces and cases
@@ -193,6 +234,7 @@ def create_graph():
 	cases = cases.loc['{0}-{1}-{2}'.format(yesterday.year, yesterday.month, yesterday.day)]
 	cases = clean_bundeslaender_cases(cases)
 	cases = cases.reset_index().set_index("Bundesland")
+	max_cases = cases['AnzahlFall'].max() # ToDo: -
 	cases.loc['Countrywide']= cases.sum(numeric_only=True, axis=0)
 	
 	##############
@@ -200,35 +242,78 @@ def create_graph():
 	##############
 
 	### NODES
+
+	# BUNDESLÄNDER
 	nodes = []
-	for i,node in enumerate(u_provinces):
-		x = 0.35
-		y = i
+	for i, node in enumerate(u_provinces):
+		x = 0.25
+		y = i * normalized_unit_y_provinces if not node == 'Countrywide' else (i + 2) * normalized_unit_y_provinces # ToDo: Place Countrywide
 		r_value = R_VALUES[node]
 		num_of_infec = cases.loc[node]['AnzahlFall']
 		nodes.append({
 			'key': node,
+			'type': 'province',
 			'x': x,
 			'y': y,
 			'textpos': "middle left",
 			'r_value': r_value,
 			'color': get_color_for_r_value(r_value),
-			'hovertext': 'R-Value: {0} , Number of cases: {1}'.format(r_value, num_of_infec), 
-			'size': get_size_for_number_of_cases(num_of_infec)
+			'hovertext': 'R-Value: {0} , Number of cases: {1}'.format(r_value, num_of_infec),
+			'size': 30 * (num_of_infec / max_cases) # ToDo: get_size_for_number_of_cases(num_of_infec)
 		})
 
-	for i,node in enumerate(u_types):
-		x = 0.65
-		y = i * (len(u_provinces) / len(u_types))
+
+	# CREATE NODE FOR EACH TYPES / KATEGORIEN
+	for i_type, node in enumerate(u_types):
+		# CREATE NODE FOR EACH SUBTYPES / SUBKATEGORIEN
+		row_data = data[(data.type.isin([node]))]
+		temp_subtypes = get_unique_vals(row_data, 'type_sub_cat')
+		base_y = i_type * normalized_unit_y_types # base y = ypos of Typenode
+		for i_subtype, subnode in enumerate(temp_subtypes):
+			exists = ((currenttime_data[(currenttime_data.type.isin([node]) & currenttime_data.type_sub_cat.isin([subnode]))]).shape)[0] # is there any row containing both values?
+			if exists:
+				#print(data[(data.type.isin([node]) & data.type_sub_cat.isin([subnode]))])
+				x = 0.35
+				# subtype length unit,
+				# eg if theres 3 types and 2 subtypes:
+				# normalized_unit_y_types is 0.33
+				# normalized_unit_y_subtypes is 0.33 / 2 = 0.167
+				normalized_unit_y_subtypes = normalized_unit_y_types / len(temp_subtypes)
+				#  base_y + sub length unit
+				y = base_y + (i_subtype * normalized_unit_y_subtypes)
+				nodes.append({
+					'key': subnode,
+					'subkey': node,
+					'type': 'subtype',
+					'x': x,
+					'y': y,
+					'textpos': "middle right",
+					'color': "#909090",
+					'hovertext': 'ToDo: Hovertext',  # ToDo: Hovertext Maßnahmensubkategorien
+					'size': 15 # ToDo: Entscheiden welche größe subkategorien haben
+				})
+
+		exists = (currenttime_data[(currenttime_data.type.isin([node]))].shape)[0]
+		x = 0.70
+		y = base_y
 		nodes.append({
 			'key': node,
+			'type': 'type',
 			'x': x,
 			'y': y,
 			'textpos': "middle right",
-			'color': "grey",
-			'hovertext': 'R-Value: {0}'.format(r_value),
+			'color': "black" if exists else "#A0A0A0",
+			'hovertext': 'ToDo: Hovertext', # ToDo: Hovertext Maßnahmenkategorien
 			'size': 30
 		})
+
+	#fix y positions for subtypes (optional)
+	y_subtypes = 1 / len([node for node in nodes if node['type'] == "subtype"])
+	y_iter = 0
+	for node in nodes:
+		if node['type'] == "subtype":
+			node['y'] = y_iter * y_subtypes
+			y_iter += 1
 
 	node_trace = go.Scatter(
 		x = [node['x'] for node in nodes],
@@ -266,8 +351,18 @@ def create_graph():
 	for idx, row in started_within_last_2w.iterrows():
 		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
 		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
-		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
-		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		x1 = get_node_attr_by_key(nodes = nodes, key = row['type_sub_cat'], attr="x", subkey=row['type'])
+		y1 = get_node_attr_by_key(nodes = nodes, key = row['type_sub_cat'], attr="y", subkey=row['type'])
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+		x0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+		y0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+		x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
 		edge_x.append(x0)
 		edge_x.append(x1)
 		edge_x.append(None)
@@ -287,10 +382,20 @@ def create_graph():
 	edge_x = []
 	edge_y = []
 	for idx, row in ongoing.iterrows():
-		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
-		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
-		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
-		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		x0 = get_node_attr_by_key(nodes=nodes, key=row['target_province'], attr="x")
+		y0 = get_node_attr_by_key(nodes=nodes, key=row['target_province'], attr="y")
+		x1 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+		y1 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+		x0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+		y0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+		x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
 		edge_x.append(x0)
 		edge_x.append(x1)
 		edge_x.append(None)
@@ -310,10 +415,20 @@ def create_graph():
 	edge_x = []
 	edge_y = []
 	for idx, row in ongoing_4w.iterrows():
-		x0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="x")
-		y0 = get_node_attr_by_key(nodes = nodes, key = row['target_province'], attr="y")
-		x1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="x")
-		y1 = get_node_attr_by_key(nodes = nodes, key = row['type'], attr="y")
+		x0 = get_node_attr_by_key(nodes=nodes, key=row['target_province'], attr="x")
+		y0 = get_node_attr_by_key(nodes=nodes, key=row['target_province'], attr="y")
+		x1 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+		y1 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+		edge_x.append(x0)
+		edge_x.append(x1)
+		edge_x.append(None)
+		edge_y.append(y0)
+		edge_y.append(y1)
+		edge_y.append(None)
+		x0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+		y0 = get_node_attr_by_key(nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+		x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
+		y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
 		edge_x.append(x0)
 		edge_x.append(x1)
 		edge_x.append(None)
