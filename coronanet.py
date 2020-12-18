@@ -109,7 +109,9 @@ def get_cases_data_json():
     print(data.head())
     data = data.sort_values(['attributes_Bundesland', 'attributes_Meldedatum'])
     print(data)
-    # print(get_unique_vals(data, 'attributes_Bundesland'))
+
+    #print(get_unique_vals(data, 'attributes_Bundesland'))
+
     a = data[(data['attributes_Bundesland'] == 'Hamburg')]
     # plt.show()
     print(data.info())
@@ -151,7 +153,8 @@ def get_coronanet_data():
     url = "https://raw.githubusercontent.com/saudiwin/corona_tscs/master/data/CoronaNet/data_country/coronanet_release/coronanet_release_{0}.csv".format(
         country)
     data = pd.read_csv(url, encoding='iso-8859-1')
-    # data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
+    #data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
+
     return data
 
 
@@ -215,12 +218,12 @@ def find_best_match(outlier, targetlist):
 
 
 def clean_bundeslaender(data):
-    # data_all = data[(data.province.isin(['-', np.nan]))]
+    #data_all = data[(data.province.isin(['-', np.nan]))]
     data['target_province'] = data['target_province'].str.replace(';', '')
     data['target_province'] = data['target_province'].str.replace(
         r'^-$', 'Countrywide')
-    data[(data.target_province.isin(['-', np.nan]))
-         ] = data[(data.target_province.isin(['-', np.nan]))].assign(target_province='Countrywide')
+    data[(data.target_province.isin(['-', np.nan]))] = data[(
+        data.target_province.isin(['-', np.nan]))].assign(target_province='Countrywide')
 
     # MANUAL CLEANING
     # first Step: add missing rows
@@ -387,7 +390,7 @@ def create_graph():
             exists = ((currenttime_data[(currenttime_data.type.isin([node]) & currenttime_data.type_sub_cat.isin(
                 [subnode]))]).shape)[0]  # is there any row containing both values?
             if exists:
-                # print(data[(data.type.isin([node]) & data.type_sub_cat.isin([subnode]))])
+                #print(data[(data.type.isin([node]) & data.type_sub_cat.isin([subnode]))])
                 x = 0.35
                 # subtype length unit,
                 # eg if theres 3 types and 2 subtypes:
