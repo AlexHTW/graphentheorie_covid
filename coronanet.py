@@ -320,17 +320,17 @@ def create_graph():
 
     date_2w_before = selected_date - timedelta(days=14)
     date_4w_before = selected_date - timedelta(days=28)
-    date_2w_after_end = data.date_end + timedelta(days=14)
-    date_4w_after_end = data.date_end + timedelta(days=28)
+    date_2w_after_end = data_measure.date_end + timedelta(days=14)
+    date_4w_after_end = data_measure.date_end + timedelta(days=28)
 
-    started_within_last_2w = data[data.date_start > date_2w_before]
-    ongoing_2w_4w = data[(data.date_start < date_2w_before) & (
-        data.date_start > date_4w_before) & (data.date_end > selected_date)]
-    ongoing_4w = data[(data.date_start < date_4w_before) & (
-        data.date_end > date_2w_before)]
-    ended_within_2w = data[(selected_date > data.date_end) & (
+    started_within_last_2w = data_measure[data_measure.date_start > date_2w_before]
+    ongoing_2w_4w = data_measure[(data_measure.date_start < date_2w_before) & (
+        data_measure.date_start > date_4w_before) & (data_measure.date_end > selected_date)]
+    ongoing_4w = data_measure[(data_measure.date_start < date_4w_before) & (
+        data_measure.date_end > date_2w_before)]
+    ended_within_2w = data_measure[(selected_date > data_measure.date_end) & (
         selected_date < date_2w_after_end)]
-    ended_within_2w_4w = data[(selected_date > date_2w_after_end) & (
+    ended_within_2w_4w = data_measure[(selected_date > date_2w_after_end) & (
         selected_date < date_4w_after_end)]
 
     currenttime_data = pd.concat([started_within_last_2w, ongoing_2w_4w, ongoing_4w, ended_within_2w, ended_within_2w_4w],
