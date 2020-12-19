@@ -17,10 +17,10 @@ import difflib
 
 THIN_EDGE = 0.3
 THICK_EDGE = 3
-MIN_R_VALUE = 0
-MAX_R_VALUE = 3
+MIN_R_VALUE = 0.5
+MAX_R_VALUE = 1.4
 
-N_COLORS = 3
+N_COLORS = 50
 COLORS = list(Color("green").range_to(Color("red"), N_COLORS))
 COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
@@ -148,9 +148,9 @@ def get_coronanet_data():
             gets 'live' data from github
     """
     country = "Germany"
-    url = "https://raw.githubusercontent.com/saudiwin/corona_tscs/master/data/CoronaNet/data_country/coronanet_release/coronanet_release_{0}.csv".format(
-        country)
-    data = pd.read_csv(url, encoding='iso-8859-1')
+    url = "https://raw.githubusercontent.com/saudiwin/corona_tscs/master/data/CoronaNet/data_country/coronanet_release/coronanet_release_{0}.csv".format(country)
+    #url = "../coronanet_release_Germany.csv"
+    data = pd.read_csv(url, encoding='iso-8859-1') #,error_bad_lines=False)
     #data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
     return data
 
@@ -174,7 +174,7 @@ def get_color_for_r_value(r_value):
     idx = (((r_value - old_min) * (new_max - new_min)) /
            (old_max - old_min)) + new_min
     return int(round(idx))
-
+    
 
 def get_size_for_number_of_cases(number_of_cases, max_cases):
     """
@@ -277,6 +277,16 @@ def clean_bundeslaender_2(data):
     data = data.replace(to_replace=r'^Hessen', value='Hesse', regex=True)
     return data
 
+def save_calculated_number_cases_to_csv(filename,data, cal_date):
+    if os.path.isfile(filename):
+        saved_data_bc = pd.read_csv(filename).set_index('Meldedatum')
+        if cal_date in saved_data_bc.index:
+            saved_data_bc = saved_data_bc.drop(cal_date)
+            saved_data_bc.to_csv(filename, header=True)
+        else:
+            data.to_csv(filename, mode='a', header=False)
+    else: 
+        data.to_csv(filename, header = True)
 
 def create_graph():
     # all data
@@ -302,8 +312,8 @@ def create_graph():
     normalized_unit_y_provinces = 1 / len(u_provinces)
     # normalized unit y, so all types y-positions are evenly between 0 and 1
     normalized_unit_y_types = 1 / len(u_types)
-    print("y_prov einheitslänge: {0}".format(normalized_unit_y_provinces))
-    print("y_types einheitslänge: {0}".format(normalized_unit_y_types))
+    #print("y_prov einheitslänge: {0}".format(normalized_unit_y_provinces))
+    #print("y_types einheitslänge: {0}".format(normalized_unit_y_types))
 
     # print(u_provinces)
 
@@ -328,13 +338,14 @@ def create_graph():
 
     # get current cases of all province
 
-    yesterday = date.today() - timedelta(days=2)
-    cases = cases.loc['{0}-{1}-{2}'.format(yesterday.year,
-                                           yesterday.month, yesterday.day)]
+    yesterday = date.today() - timedelta(days=2) 
+    cal_date = '{0}-{1}-{2}'.format(yesterday.year,yesterday.month, yesterday.day)
+    cases = cases.loc[cal_date]
     cases = cases.reset_index().set_index("Bundesland")
     cases.loc['Countrywide'] = cases.sum(numeric_only=True, axis=0)
+    cases['Meldedatum'] = cases['Meldedatum'].dt.date
+    cases.loc['Countrywide','Meldedatum'] = cal_date
     cases = cases.reset_index()
-
     cases['AnzahlFall_7_tage_100k'] = cases.apply(
         lambda x: get_cases_7_days_100k(x, bundesland_pop_data), axis=1)
     cases['R-Wert'] = cases.apply(
@@ -342,8 +353,9 @@ def create_graph():
     cases = clean_bundeslaender_2(cases)
     cases = cases.reset_index(drop=True).set_index("Bundesland")
     max_cases = cases['AnzahlFall_7_tage_100k'].max()  # ToDo: -
-    # print(cases)
-
+    m_ticktext = np.linspace(cases['R-Wert'].min(), cases['R-Wert'].max(), num = 5)
+    m_tickvals = [get_color_for_r_value(x) for x in m_ticktext]
+    #print(cases)
     ##############
     ### PLOTLY ###
     ##############
@@ -446,7 +458,9 @@ def create_graph():
                 thickness=15,
                 title='R Value',
                 xanchor='left',
-                titleside='right'
+                titleside='right',
+                tickvals= m_tickvals,
+                ticktext=  [round(x,3) for x in m_ticktext]
             ),
             line_width=2)
     )
