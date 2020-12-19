@@ -109,7 +109,9 @@ def get_cases_data_json():
     print(data.head())
     data = data.sort_values(['attributes_Bundesland', 'attributes_Meldedatum'])
     print(data)
+
     #print(get_unique_vals(data, 'attributes_Bundesland'))
+
     a = data[(data['attributes_Bundesland'] == 'Hamburg')]
     # plt.show()
     print(data.info())
@@ -152,6 +154,7 @@ def get_coronanet_data():
     #url = "../coronanet_release_Germany.csv"
     data = pd.read_csv(url, encoding='iso-8859-1') #,error_bad_lines=False)
     #data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
+
     return data
 
 
@@ -321,22 +324,30 @@ def create_graph():
         data_measure['date_start']).dt.date
     data_measure['date_end'] = pd.to_datetime(data_measure['date_end']).dt.date
 
+    # day of interest
+
+    yesterday = date.today() - timedelta(days=2)
+    selected_date = yesterday  # temporarily yesterday
+
     # generate current types
-    threshold_1w = date.today() - timedelta(days=7)
-    threshold_2w = date.today() - timedelta(days=14)
-    threshold_4w = date.today() - timedelta(days=28)
 
-    started_within_last_2w = data_measure[data_measure.date_start > threshold_2w]
-    ongoing = data_measure[(data_measure.date_start < threshold_2w) & (
-        data_measure.date_start > threshold_4w) & (data_measure.date_end > threshold_2w)]
-    ongoing_4w = data_measure[(data_measure.date_start < threshold_4w) & (
-        data_measure.date_end > threshold_2w)]
-#	ended_within_2w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
-#	ended_2w_4w = data[(data.date_start < threshold_4w & data.date_end > threshold_2w)] # TODO
-    currenttime_data = pd.concat([started_within_last_2w, ongoing, ongoing_4w],
+    date_2w_before = selected_date - timedelta(days=14)
+    date_4w_before = selected_date - timedelta(days=28)
+    date_2w_after_end = data_measure.date_end + timedelta(days=14)
+    date_4w_after_end = data_measure.date_end + timedelta(days=28)
+
+    started_within_last_2w = data_measure[data_measure.date_start > date_2w_before]
+    ongoing_2w_4w = data_measure[(data_measure.date_start < date_2w_before) & (
+        data_measure.date_start > date_4w_before) & (data_measure.date_end > selected_date)]
+    ongoing_4w = data_measure[(data_measure.date_start < date_4w_before) & (
+        data_measure.date_end > date_2w_before)]
+    ended_within_2w = data_measure[(selected_date > data_measure.date_end) & (
+        selected_date < date_2w_after_end)]
+    ended_within_2w_4w = data_measure[(selected_date > date_2w_after_end) & (
+        selected_date < date_4w_after_end)]
+
+    currenttime_data = pd.concat([started_within_last_2w, ongoing_2w_4w, ongoing_4w, ended_within_2w, ended_within_2w_4w],
                                  ignore_index=True, sort=False)  # dataset including all the above datasets
-
-    # get current cases of all province
 
     yesterday = date.today() - timedelta(days=2) 
     cal_date = '{0}-{1}-{2}'.format(yesterday.year,yesterday.month, yesterday.day)
@@ -468,122 +479,61 @@ def create_graph():
     # EDGES
     edges = []
 
-    # started within last 2w
+    def draw_edges(data, edges, width, color, dash='solid'):
+        edge_x = []
+        edge_y = []
+        for idx, row in data.iterrows():
+            x0 = get_node_attr_by_key(
+                nodes=nodes, key=row['target_province'], attr="x")
+            y0 = get_node_attr_by_key(
+                nodes=nodes, key=row['target_province'], attr="y")
+            x1 = get_node_attr_by_key(
+                nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+            y1 = get_node_attr_by_key(
+                nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+            edge_x.append(x0)
+            edge_x.append(x1)
+            edge_x.append(None)
+            edge_y.append(y0)
+            edge_y.append(y1)
+            edge_y.append(None)
+            x0 = get_node_attr_by_key(
+                nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
+            y0 = get_node_attr_by_key(
+                nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
+            x1 = get_node_attr_by_key(
+                nodes=nodes, key=row['type'], attr="x")
+            y1 = get_node_attr_by_key(
+                nodes=nodes, key=row['type'], attr="y")
+            edge_x.append(x0)
+            edge_x.append(x1)
+            edge_x.append(None)
+            edge_y.append(y0)
+            edge_y.append(y1)
+            edge_y.append(None)
 
-    edge_x = []
-    edge_y = []
-    for idx, row in started_within_last_2w.iterrows():
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="x")
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="y")
-        x1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
-        y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
+        edges.append(go.Scatter(
+            x=edge_x, y=edge_y,
+            line=go.scatter.Line(width=width, color=color, dash=dash),
+            hoverinfo='none',
+            mode='lines')
+        )
 
-    edges.append(go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=0.5, color='#888'),
-        hoverinfo='none',
-        mode='lines')
-    )
+    # started within last 2 weeks
+    draw_edges(started_within_last_2w, edges,
+               width=0.5, color='#888', dash='dash')
+    # ongoing 2 to 4 weeks
+    draw_edges(ongoing_2w_4w, edges, width=0.5, color='#888')
 
-    # ongoing
+    # ongoing 4 weeks or more
+    draw_edges(ongoing_4w, edges, width=1, color='#888')
 
-    edge_x = []
-    edge_y = []
-    for idx, row in ongoing.iterrows():
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="x")
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="y")
-        x1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
-        y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
+    # ended within 2 weeks
+    draw_edges(ended_within_2w, edges, width=0.5, color='#e88574')
 
-    edges.append(go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=0.5, color='#888'),
-        hoverinfo='none',
-        mode='lines')
-    )
-
-    # ongoing_4w
-
-    edge_x = []
-    edge_y = []
-    for idx, row in ongoing_4w.iterrows():
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="x")
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['target_province'], attr="y")
-        x1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y1 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
-        x0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
-        y0 = get_node_attr_by_key(
-            nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-        x1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="x")
-        y1 = get_node_attr_by_key(nodes=nodes, key=row['type'], attr="y")
-        edge_x.append(x0)
-        edge_x.append(x1)
-        edge_x.append(None)
-        edge_y.append(y0)
-        edge_y.append(y1)
-        edge_y.append(None)
-
-    edges.append(go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=1, color='#888'),
-        hoverinfo='none',
-        mode='lines')
-    )
+    # ended within 2 to 4 weeks
+    draw_edges(ended_within_2w_4w, edges, width=0.5,
+               color='#e88574', dash='dash')
 
     # node_adjacencies = []
     # node_text = []
