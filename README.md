@@ -16,4 +16,5 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # show graph
-python coronanet.py
+python main.py
+

@@ -81,6 +81,7 @@ class CoronaNet:
         self.data['date_end'] = pd.to_datetime(self.data['date_end']).dt.date
 
         # timespans
+        day = day.date()
         date_2w_before = day - timedelta(days=14)
         date_4w_before = day - timedelta(days=28)
         date_2w_after_end = day + timedelta(days=14)

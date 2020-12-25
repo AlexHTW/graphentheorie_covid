@@ -18,7 +18,7 @@ import difflib
 from CoronaNet import CoronaNet
 from helpers import get_unique_vals
 from dateutil.rrule import rrule, DAILY
-
+from RKI_covid19 import RKI_covid19
 
 THIN_EDGE = 0.3
 THICK_EDGE = 3
@@ -29,125 +29,6 @@ N_COLORS = 50
 COLORS = list(Color("green").range_to(Color("red"), N_COLORS))
 COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
-
-R_VALUES = {
-    'Baden-Wuerttemberg': random.uniform(0, 3),
-    'Bremen': random.uniform(0, 3),
-    'Mecklenburg-Vorpommern': random.uniform(0, 3),
-    'Bavaria': random.uniform(0, 3),
-    'Lower Saxony': random.uniform(0, 3),
-    'North Rhine-Westphalia': random.uniform(0, 3),
-    'Saxony-Anhalt': random.uniform(0, 3),
-    'Hamburg': random.uniform(0, 3),
-    'Schleswig-Holstein': random.uniform(0, 3),
-    'Hesse': random.uniform(0, 3),
-    'Rheinland-Pfalz': random.uniform(0, 3),
-    'Saarland': random.uniform(0, 3),
-    'Saxony': random.uniform(0, 3),
-    'Thuringia': random.uniform(0, 3),
-    'Berlin': random.uniform(0, 3),
-    'Brandenburg': random.uniform(0, 3),
-    'Lombardy': random.uniform(0, 3)
-}
-
-R_VALUES['Countrywide'] = np.mean(list(R_VALUES.values()))
-
-
-def correct_data_with_days(data):
-    n_data = data
-    for ind, row in data.iterrows():
-        if(ind < len(data)-2):
-            if row['Bundesland'] == data['Bundesland'][ind+1]:
-                while True:
-                    if row['Meldedatum'] < data['Meldedatum'][ind+1] - timedelta(days=1):
-                        row['Meldedatum'] = row['Meldedatum'] + \
-                            timedelta(days=1)
-                        row['AnzahlFall'] = 0
-                        n_data = n_data.append(row).sort_index()
-                    else:
-                        break
-    # print(n_data)
-    return n_data.sort_values(['Bundesland', 'Meldedatum']).reset_index(drop=True)
-
-
-def get_cases_7_days(x, data):
-    con1 = data['Meldedatum'] <= x['Meldedatum']
-    con2 = data['Meldedatum'] > x['Meldedatum'] - timedelta(days=7)
-    con3 = data['Bundesland'] == x['Bundesland']
-    return data[con1 & con2 & con3]['AnzahlFall'].sum()
-
-
-def get_cases_7_days_100k(x, data):
-    ewz = data.loc[x['Bundesland']]['LAN_ew_EWZ']
-    res = (x["AnzahlFall_7_tage_absolut"] * 100000) / ewz
-    return res
-
-
-def get_cases_s_4(x, data):
-    con3 = data['Meldedatum'] >= x['Meldedatum'] - timedelta(days=10)
-    con4 = data['Meldedatum'] <= x['Meldedatum'] - timedelta(days=4)
-    con5 = data['Bundesland'] == x['Bundesland']
-    return data[con3 & con4 & con5]['AnzahlFall'].sum()
-
-
-def get_r_value_intervall_7_days(x):
-    s_t = x['AnzahlFall_7_tage_absolut']
-    s_t_4 = x['AnzahlFall_s_4']
-    if s_t_4 == 0:
-        return 0
-    else:
-        return s_t / s_t_4
-
-
-def get_cases_data_json():
-    response = requests.get(
-        'https://services7.arcgis.com/mOBPykOjAyBO2ZKk/arcgis/rest/services/RKI_COVID19/FeatureServer/0/query?where=1%3D1&outFields=Bundesland,AnzahlFall,Meldedatum&outSR=800000000&f=json')
-    data_json = json.loads(response.text)['features']
-
-    data = pd.json_normalize(data_json, sep='_')
-    data['attributes_Meldedatum'] = pd.to_datetime(
-        data['attributes_Meldedatum'], unit='ms')
-    # print(len(data))
-    data = data.groupby(['attributes_Bundesland', 'attributes_Meldedatum'], as_index=False)[
-        'attributes_AnzahlFall'].sum()
-
-    print(data.head())
-    data = data.sort_values(['attributes_Bundesland', 'attributes_Meldedatum'])
-    print(data)
-
-    #print(get_unique_vals(data, 'attributes_Bundesland'))
-
-    a = data[(data['attributes_Bundesland'] == 'Hamburg')]
-    # plt.show()
-    print(data.info())
-    print(len(a))
-
-
-def get_bundesland_pop():
-    bundesland_pop_data = pd.read_csv("bundesland.csv",
-                                      encoding='utf8',
-                                      usecols=['LAN_ew_GEN', 'LAN_ew_EWZ'], index_col='LAN_ew_GEN')
-    bundesland_pop_data.loc['Countrywide'] = bundesland_pop_data.sum(
-        numeric_only=True, axis=0)
-    return bundesland_pop_data
-
-
-def get_cases_data_csv():
-    url = "https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.csv"
-    data = pd.read_csv(url,
-                       encoding='utf8',
-                       usecols=['Bundesland', 'AnzahlFall', 'Meldedatum'],
-                       parse_dates=['Meldedatum'])
-
-    bundesland_cases = data.groupby(['Bundesland', 'Meldedatum'], as_index=False)[
-        'AnzahlFall'].sum()
-    bundesland_cases = bundesland_cases.sort_values(
-        ['Bundesland', 'Meldedatum'])
-    bundesland_cases['AnzahlFall_7_tage_absolut'] = bundesland_cases.apply(
-        lambda x: get_cases_7_days(x, bundesland_cases), axis=1)
-    bundesland_cases['AnzahlFall_s_4'] = bundesland_cases.apply(
-        lambda x: get_cases_s_4(x, bundesland_cases), axis=1)
-    return bundesland_cases
 
 
 def get_color_for_r_value(r_value):
@@ -184,45 +65,10 @@ def get_node_attr_by_key(nodes, key, attr, subkey=None):
     else:
         return None
 
-def clean_bundeslaender_2(data):
-    data = data.replace(to_replace=r'^Baden-Württemberg',
-                        value='Baden-Wuerttemberg', regex=True)
-    data = data.replace(to_replace=r'^Thüringen',
-                        value='Thuringia', regex=True)
-    data = data.replace(to_replace=r'^Bayern', value='Bavaria', regex=True)
-    data = data.replace(to_replace=r'^Niedersachsen',
-                        value='Lower Saxony', regex=True)
-    data = data.replace(to_replace=r'^Sachsen', value='Saxony', regex=True)
-    data = data.replace(to_replace=r'^Nordrhein-Westfalen',
-                        value='North Rhine-Westphalia', regex=True)
-    data = data.replace(to_replace=r'^Hessen', value='Hesse', regex=True)
-    return data
 
-def save_calculated_number_cases_to_csv(filename,data, cal_date):
-    if os.path.isfile(filename):
-        saved_data_bc = pd.read_csv(filename).set_index('Meldedatum')
-        if cal_date in saved_data_bc.index:
-            saved_data_bc = saved_data_bc.drop(cal_date)
-            saved_data_bc.to_csv(filename, header=True)
-        else:
-            data.to_csv(filename, mode='a', header=False)
-    else: 
-        data.to_csv(filename, header = True)
-
-def create_edges_and_nodes(cn, day, cases, bundesland_pop_data):
+def create_edges_and_nodes(cn, cases_dataset, day):
     cal_date = '{0}-{1}-{2}'.format(day.year, day.month, day.day)
-    cases = cases.loc[cal_date]
-    cases = cases.reset_index().set_index("Bundesland")
-    cases.loc['Countrywide'] = cases.sum(numeric_only=True, axis=0)
-    # cases['Meldedatum'] = cases['Meldedatum'].dt.date
-    cases.loc['Countrywide', 'Meldedatum'] = cal_date
-    cases = cases.reset_index()
-    cases['AnzahlFall_7_tage_100k'] = cases.apply(
-        lambda x: get_cases_7_days_100k(x, bundesland_pop_data), axis=1)
-    cases['R-Wert'] = cases.apply(
-        lambda x: get_r_value_intervall_7_days(x), axis=1)
-    cases = clean_bundeslaender_2(cases)
-    cases = cases.reset_index(drop=True).set_index("Bundesland")
+    cases = cases_dataset.load_data_for_day(day).set_index('Bundesland')
     max_cases = cases['AnzahlFall_7_tage_100k'].max()  # ToDo: not working, because for some days its 0?
     m_ticktext = np.linspace(cases['R-Wert'].min(), cases['R-Wert'].max(), num=5)
     m_tickvals = [get_color_for_r_value(x) for x in m_ticktext]
@@ -403,30 +249,24 @@ def create_edges_and_nodes(cn, day, cases, bundesland_pop_data):
     return [*edges, node_trace]
 
 def create_graph():
-    # all data
-    bundesland_pop_data = get_bundesland_pop()  # provinces and population
-    bundesland_pop_data.loc['Countrywide'] = bundesland_pop_data.sum(
-        numeric_only=True, axis=0)
-    cases = get_cases_data_csv().set_index('Meldedatum')  # provinces and cases
-
     # generate current types
 
     cn = CoronaNet()
-
+    cases_dataset = RKI_covid19()
     ##############
     ### PLOTLY ###
     ##############
 
     frames = [
         go.Frame(
-            data=create_edges_and_nodes(cn=cn, day=day, cases=cases, bundesland_pop_data=bundesland_pop_data),
+            data=create_edges_and_nodes(cn=cn, cases_dataset=cases_dataset, day=day),
             name=str(day)
         )
         for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=date.today() - timedelta(days=2)))
     ]
 
     fig = go.Figure(
-        data=create_edges_and_nodes(cn = cn, day = cn.FIRST_DAY, cases = cases, bundesland_pop_data = bundesland_pop_data),
+        data=create_edges_and_nodes(cn=cn, cases_dataset=cases_dataset, day = cn.FIRST_DAY),
         layout=go.Layout(
             title='CoronaNet Visualization',
             titlefont_size=16,

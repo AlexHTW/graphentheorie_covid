@@ -6,3 +6,4 @@ plotly
 colour
 requests
 tqdm
+xarray
