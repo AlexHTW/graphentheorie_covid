@@ -315,7 +315,7 @@ def create_graph():
                     "xanchor": "left",
                     "currentvalue": {
                         "font": {"size": 20},
-                        "prefix": "Date:",
+                        "prefix": "Selected Date:",
                         "visible": True,
                         "xanchor": "right"
                     },
