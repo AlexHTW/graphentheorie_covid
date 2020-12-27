@@ -315,7 +315,7 @@ def create_graph():
                     "xanchor": "left",
                     "currentvalue": {
                         "font": {"size": 20},
-                        "prefix": "Year:",
+                        "prefix": "Date:",
                         "visible": True,
                         "xanchor": "right"
                     },
@@ -335,7 +335,7 @@ def create_graph():
                                 ],
                             "label": day.strftime('%d/%m/%Y'), # ToDo: label for current day...
                             "method": "animate"
-                        } for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=cn.TARGET_DATE))
+                        } for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=date.today() - timedelta(days=2)))
                     ]
                 }
             ]

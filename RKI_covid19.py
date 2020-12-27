@@ -14,7 +14,7 @@ import requests
 import difflib
 
 class RKI_covid19:
-    FIRST_DAY = date(2020,12,1)
+    FIRST_DAY = date(2020,4,1)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data_cases')
 
     def __init__(self, update = False):
@@ -60,6 +60,21 @@ class RKI_covid19:
         else:
             return s_t / s_t_4
     
+    def correct_data_of_all_days(self,data):
+        n_data = data
+        for ind, row in data.iterrows():
+            if(ind < len(data)-2):
+                if row['Bundesland']== data['Bundesland'][ind+1]:
+                    while True:
+                        if row['Meldedatum'] < data['Meldedatum'][ind+1] - timedelta(days=1):
+                            row['Meldedatum'] = row['Meldedatum'] + timedelta(days=1)
+                            row['AnzahlFall'] = 0
+                            n_data= n_data.append(row).sort_index()
+                        else: 
+                            break
+        return n_data.sort_values(['Bundesland','Meldedatum']).reset_index(drop=True)
+				
+
     def clean_bundeslaender(self,data):
         data = data.replace(to_replace=r'^Baden-Württemberg',
                             value='Baden-Wuerttemberg', regex=True)
@@ -86,6 +101,7 @@ class RKI_covid19:
             data = data.sort_values(['Bundesland', 'Meldedatum'])
             data['AnzahlFall_7_tage_absolut'] = data.apply(lambda x: self.get_cases_7_days(x,data), axis=1)
             data['AnzahlFall_s_4'] = data.apply(lambda x: self.get_cases_s_4(x, data), axis=1)
+            data = self.correct_data_of_all_days(data)
             self.data = data
 
     def update_offlinedata(self):
@@ -104,7 +120,7 @@ class RKI_covid19:
 
     def generate_data_for_day(self, day):
         
-        #self.get_rkicovid19_dataset()
+        
         cal_date = '{0}-{1}-{2}'.format(day.year, day.month, day.day)
         cases = self.data.set_index('Meldedatum').loc[cal_date]
         cases = cases.reset_index().set_index("Bundesland")

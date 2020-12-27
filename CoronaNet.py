@@ -16,7 +16,7 @@ import difflib
 from helpers import get_unique_vals, find_best_match
 
 class CoronaNet:
-    FIRST_DAY = date(2020,12,1)
+    FIRST_DAY = date(2020,4,1)
     TARGET_DATE = date(2020,12, 20) #date.today() - timedelta(days=2)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data')
     BUNDESLAENDERNODES = [
