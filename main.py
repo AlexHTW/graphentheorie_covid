@@ -99,7 +99,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'textpos': "middle left",
             'r_value': r_value,
             'color': get_color_for_r_value(r_value),
-            'hovertext': 'R-Value: {0} , Number of cases: {1}'.format(r_value, num_of_infec),
+            'hovertext': 'R-Value: {0}<br>Number of cases per 100k population: {1}'.format(r_value, num_of_infec),
             'size': get_size_for_number_of_cases(num_of_infec, max_cases)
         })
 
@@ -165,6 +165,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         textposition=[node['textpos'] for node in nodes],
         mode='markers+text',
         hoverinfo='text',
+        hovertext= [node['hovertext'] for node in nodes],
         marker=dict(
             showscale=True,
             # colorscale options

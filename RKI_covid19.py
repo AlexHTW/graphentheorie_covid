@@ -41,7 +41,7 @@ class RKI_covid19:
     def get_cases_7_days_100k(self, x, data):
         ewz = data.loc[x['Bundesland']]['LAN_ew_EWZ']
         res = (x["AnzahlFall_7_tage_absolut"] * 100000) / ewz
-        return res
+        return round(res,2)
 
 
     def get_cases_s_4(self, x, data):
@@ -58,7 +58,7 @@ class RKI_covid19:
         if s_t_4 == 0:
             return 0
         else:
-            return s_t / s_t_4
+            return round(s_t / s_t_4, 2)
     
     def correct_data_of_all_days(self,data):
         n_data = data
