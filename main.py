@@ -131,8 +131,8 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     'y': y,
                     'textpos': "middle right",
                     'color': "#909090",
-                    'hovertext': 'ToDo: Hovertext',  # ToDo: Hovertext Maßnahmensubkategorien
-                    'size': 15  # ToDo: Entscheiden welche größe subkategorien haben
+                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+                    'size': 10  # ToDo: Entscheiden welche größe subkategorien haben
                 })
 
         exists = (
@@ -146,7 +146,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'y': y,
             'textpos': "middle right",
             'color': "black" if exists else "#A0A0A0",
-            'hovertext': 'ToDo: Hovertext',  # ToDo: Hovertext Maßnahmenkategorien
+            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
             'size': 30
         })
 
@@ -164,7 +164,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         text=[node['key'] for node in nodes],  # Labels
         textposition=[node['textpos'] for node in nodes],
         mode='markers+text',
-        hoverinfo='text',
+        hoverinfo='name+text',
         hovertext= [node['hovertext'] for node in nodes],
         marker=dict(
             showscale=True,
@@ -192,8 +192,11 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     edges = []
 
     def draw_edges(data, edges, width, color, dash='solid'):
+        subcatcoords = []
+        catcoords = []
         edge_x = []
         edge_y = []
+        hovertexts = []
         for idx, row in data.iterrows():
             x0 = get_node_attr_by_key(
                 nodes=nodes, key=row['target_province'], attr="x")
@@ -203,12 +206,14 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                 nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
             y1 = get_node_attr_by_key(
                 nodes=nodes, key=row['type_sub_cat'], attr="y", subkey=row['type'])
-            edge_x.append(x0)
-            edge_x.append(x1)
-            edge_x.append(None)
-            edge_y.append(y0)
-            edge_y.append(y1)
-            edge_y.append(None)
+            if not [x0, x1, y0, y1] in subcatcoords:
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+                subcatcoords.append([x0, x1, y0, y1])
             x0 = get_node_attr_by_key(
                 nodes=nodes, key=row['type_sub_cat'], attr="x", subkey=row['type'])
             y0 = get_node_attr_by_key(
@@ -217,12 +222,14 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                 nodes=nodes, key=row['type'], attr="x")
             y1 = get_node_attr_by_key(
                 nodes=nodes, key=row['type'], attr="y")
-            edge_x.append(x0)
-            edge_x.append(x1)
-            edge_x.append(None)
-            edge_y.append(y0)
-            edge_y.append(y1)
-            edge_y.append(None)
+            if not [x0, x1, y0, y1] in catcoords:
+                edge_x.append(x0)
+                edge_x.append(x1)
+                edge_x.append(None)
+                edge_y.append(y0)
+                edge_y.append(y1)
+                edge_y.append(None)
+                catcoords.append([x0, x1, y0, y1])
 
         edges.append(go.Scatter(
             x=edge_x, y=edge_y,

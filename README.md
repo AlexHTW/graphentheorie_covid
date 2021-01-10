@@ -18,3 +18,6 @@ pip install -r requirements.txt
 # show graph
 python main.py
 
+# get dataset covid data
+wget -O cases_2021-1-10.csv https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.csv
+

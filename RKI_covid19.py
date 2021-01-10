@@ -16,12 +16,33 @@ import difflib
 class RKI_covid19:
     FIRST_DAY = date(2020,4,1)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data_cases')
+    CSVPATH = os.path.dirname(__file__)
 
-    def __init__(self, update = False):
+    def __init__(self, update = True):
+        self.update_csvfile()
         self.get_rkicovid19_dataset()
         self.get_bundesland_pop()
         if update:
             self.update_offlinedata()
+
+    def update_csvfile(self):
+        now = datetime.now()
+        filepath = os.path.join(RKI_covid19.CSVPATH, "cases_{0}-{1}-{2}.csv".format(now.year, now.month, now.day))
+        print('filepath: {0}'.format(filepath))
+        if os.path.isfile(filepath):
+            print('covid cases file found')
+            self.csvdatapath = filepath
+            self.get_rkicovid19_dataset()
+        else:
+            print('covid cases file not found')
+            url = "https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.csv"
+            req = requests.get(url)
+            url_content = req.content
+            with open(filepath, 'wb') as csv_file:
+                csv_file.write(url_content)
+                csv_file.close()
+            self.csvdatapath = filepath
+            self.get_rkicovid19_dataset()
 
     def get_bundesland_pop(self):
         bundesland_pop_data = pd.read_csv("bundesland.csv",
@@ -91,8 +112,7 @@ class RKI_covid19:
 
     def get_rkicovid19_dataset(self):
         if not hasattr(self, 'data'):
-            url = "https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.csv"
-            data = pd.read_csv(url,
+            data = pd.read_csv(self.csvdatapath,
                         encoding='utf8',
                         usecols=['Bundesland', 'AnzahlFall', 'Meldedatum'],
                         parse_dates=['Meldedatum'])
