@@ -166,6 +166,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         mode='markers+text',
         hoverinfo='name+text',
         hovertext= [node['hovertext'] for node in nodes],
+        showlegend=False,
         marker=dict(
             showscale=True,
             # colorscale options
@@ -191,7 +192,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
 
     edges = []
 
-    def draw_edges(data, edges, width, color, dash='solid'):
+    def draw_edges(data, edges, width, color, type_name, dash='solid'):
         subcatcoords = []
         catcoords = []
         edge_x = []
@@ -235,24 +236,25 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             x=edge_x, y=edge_y,
             line=go.scatter.Line(width=width, color=color, dash=dash),
             hoverinfo='none',
-            mode='lines')
+            mode='lines',
+            name = type_name)
         )
 
     # started within last 2 weeks
     draw_edges(started_within_last_2w, edges,
-               width=0.5, color='#888', dash='dash')
+               width=0.5, color='#888',  type_name= 'started within last 2 weeks', dash='dash',)
     # ongoing 2 to 4 weeks
-    draw_edges(ongoing_2w_4w, edges, width=0.5, color='#888')
+    draw_edges(ongoing_2w_4w, edges, width=0.5, color='#888', type_name= 'ongoing since 2 to 4 weeks')
 
     # ongoing 4 weeks or more
-    draw_edges(ongoing_4w, edges, width=1, color='#888')
+    draw_edges(ongoing_4w, edges, width=1, color='#888', type_name= 'ongoing since 4 weeks or more')
 
     # ended within 2 weeks
-    draw_edges(ended_within_2w, edges, width=0.5, color='#e88574')
+    draw_edges(ended_within_2w, edges, width=0.5, color='#e88574', type_name= 'ended within 2 weeks')
 
     # ended within 2 to 4 weeks
     draw_edges(ended_within_2w_4w, edges, width=0.5,
-               color='#e88574', dash='dash')
+               color='#e88574', type_name= 'ended within 2 to 4 weeks', dash='dash')
 
     return [*edges, node_trace]
 
@@ -278,7 +280,14 @@ def create_graph():
         layout=go.Layout(
             title='CoronaNet Visualization',
             titlefont_size=16,
-            showlegend=False,
+            showlegend=True,
+            legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1,
+                    xanchor="right",
+                    x=1
+                ),
             hovermode='closest',
             margin=dict(b=20, l=5, r=5, t=40),
             annotations=[dict(
