@@ -80,7 +80,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     # NODES
 
     # BUNDESLÄNDER
-    nodes = []
+    nodes_state = []
     for i, node in enumerate(cn.u_provinces):
         x = 0.25
         y = i * cn.normalized_unit_y_provinces if not node == 'Countrywide' else (
@@ -88,7 +88,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         # ToDo: FIX Exceptions -- KeyError: 'Hamburg'
         r_value = cases.loc[node]['R-Wert']
         num_of_infec = cases.loc[node]['AnzahlFall_7_tage_100k']
-        nodes.append({
+        nodes_state.append({
             'key': node,
             'type': 'province',
             'x': x,
@@ -97,9 +97,40 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'r_value': r_value,
             'color': get_color_for_r_value(r_value),
             'hovertext': 'R-Value: {0}<br>Number of cases per 100k population: {1}'.format(r_value, num_of_infec),
-            'size': get_size_for_number_of_cases(num_of_infec, max_cases)
+            'size': get_size_for_number_of_cases(num_of_infec, max_cases),
         })
+    node_trace_state = go.Scatter(
+        x=[node['x'] for node in nodes_state],
+        y=[node['y'] for node in nodes_state],
+        text=[node['key'] for node in nodes_state],  # Labels
+        textposition=[node['textpos'] for node in nodes_state],
+        mode='markers+text',
+        hoverinfo='name+text',
+        hovertext= [node['hovertext'] for node in nodes_state],
+        name = 'state node (size - 7 days incidence)',
+        #showlegend=,
+        marker=dict(
+            showscale=True,
+            # colorscale options
+            # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
+            # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
+            # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
+            colorscale=COLORSCALE,
+            reversescale=True,
+            color=[node['color'] for node in nodes_state],
+            size=[node['size'] for node in nodes_state],
+            colorbar=dict(
+                thickness=15,
+                title='R Value',
+                xanchor='left',
+                titleside='right',
+                tickvals= m_tickvals,
+                ticktext= [round(x,3) for x in m_ticktext]
+            ),
+            line_width=2)
+    )
 
+    nodes_measures = []
     # CREATE NODE FOR EACH TYPES / KATEGORIEN
     for i_type, node in enumerate(cn.u_types):
         # CREATE NODE FOR EACH SUBTYPES / SUBKATEGORIEN
@@ -120,7 +151,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     len(temp_subtypes)
                 #  base_y + sub length unit
                 y = base_y + (i_subtype * normalized_unit_y_subtypes)
-                nodes.append({
+                nodes_measures.append({
                     'key': subnode,
                     'subkey': node,
                     'type': 'subtype',
@@ -128,63 +159,62 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     'y': y,
                     'textpos': "middle right",
                     'color': "#909090",
-                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'], row_data['date_end']),
-                    'size': 10  # ToDo: Entscheiden welche größe subkategorien haben
+                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+                    'size': 10 , # ToDo: Entscheiden welche größe subkategorien haben,
+                    'name' : 'measures node'
                 })
 
         exists = (
             cndata[(cndata.type.isin([node]))].shape)[0]
         x = 0.70
         y = base_y
-        nodes.append({
+        nodes_measures.append({
             'key': node,
             'type': 'type',
             'x': x,
             'y': y,
             'textpos': "middle right",
             'color': "black" if exists else "#A0A0A0",
-            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'], row_data['date_end']),
-            'size': 30
+            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+            'size': 30,
         })
 
     # fix y positions for subtypes (optional)
-    y_subtypes = 1 / len([node for node in nodes if node['type'] == "subtype"])
+    y_subtypes = 1 / len([node for node in nodes_measures if node['type'] == "subtype"])
     y_iter = 0
-    for node in nodes:
+    for node in nodes_measures:
         if node['type'] == "subtype":
             node['y'] = y_iter * y_subtypes
             y_iter += 1
 
-    node_trace = go.Scatter(
-        x=[node['x'] for node in nodes],
-        y=[node['y'] for node in nodes],
-        text=[node['key'] for node in nodes],  # Labels
-        textposition=[node['textpos'] for node in nodes],
+    node_trace_measures = go.Scatter(
+        x=[node['x'] for node in nodes_measures],
+        y=[node['y'] for node in nodes_measures],
+        text=[node['key'] for node in nodes_measures],  # Labels
+        textposition=[node['textpos'] for node in nodes_measures],
         mode='markers+text',
         hoverinfo='name+text',
-        hovertext= [node['hovertext'] for node in nodes],
-        showlegend=False,
+        hovertext= [node['hovertext'] for node in nodes_measures],
+        name = 'measures node',
+
+        #showlegend=,
         marker=dict(
-            showscale=True,
+            #showscale=True,
             # colorscale options
             # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
             # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
             # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            colorscale=COLORSCALE,
-            reversescale=True,
-            color=[node['color'] for node in nodes],
-            size=[node['size'] for node in nodes],
-            colorbar=dict(
-                thickness=15,
-                title='R Value',
-                xanchor='left',
-                titleside='right',
-                tickvals= m_tickvals,
-                ticktext=  [round(x,3) for x in m_ticktext]
-            ),
-            line_width=2)
+            #colorscale=COLORSCALE,
+            #reversescale=True,
+            color=[node['color'] for node in nodes_measures],
+            size=[node['size'] for node in nodes_measures],
+            line_width=2
+            )
     )
 
+    nodes = []
+    nodes.extend(nodes_state)
+    nodes.extend(nodes_measures)
     # EDGES
 
     edges = []
@@ -253,7 +283,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     draw_edges(ended_within_2w_4w, edges, width=0.5,
                color='#e88574', type_name= 'ended within 2 to 4 weeks', dash='dash')
 
-    return [*edges, node_trace]
+    return [node_trace_state, node_trace_measures, *edges]
 
 def create_graph():
     # generate current types
@@ -273,11 +303,6 @@ def create_graph():
         )
         for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=TARGET_DATE))
     ]
-
-    end = time.time()
-    print('---- time ---')
-    print(end - start)
-    print("----")
 
     fig = go.Figure(
         data=create_edges_and_nodes(cn=cn, cases_dataset=cases_dataset, day = cn.FIRST_DAY),

@@ -15,7 +15,8 @@ source venv/bin/activate
 # install dependencies
 pip install -r requirements.txt
 
-#create folders to save data
+# create folders to save data
+
 mkdir data data_cases
  
 # show graph
