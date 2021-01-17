@@ -14,6 +14,12 @@ import requests
 import difflib
 
 class RKI_covid19:
+    BUNDESLAENDERNODES = [
+        'Baden-Wuerttemberg', 'Bremen', 'Mecklenburg-Vorpommern', 'Bavaria',
+        'Lower Saxony', 'North Rhine-Westphalia', 'Saxony-Anhalt', 'Hamburg',
+        'Schleswig-Holstein', 'Hesse', 'Rheinland-Pfalz', 'Saarland', 'Saxony',
+        'Thuringia', 'Berlin','Brandenburg', 'Countrywide'
+    ]
     FIRST_DAY = date(2020, 4, 1)
     TARGET_DATE = date.today() - timedelta(days=2)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data_cases')
@@ -145,14 +151,19 @@ class RKI_covid19:
 
         return datacontainer
 
+    def check_completeness_of_all_state(self, data):
+        for state in self.BUNDESLAENDERNODES:
+            if state not in data.values:
+                data = data.set_index("Bundesland")
+                data.loc[state] = 0
+                data = data.reset_index()
+        return data
+
     def generate_data_for_day(self, day):
-        
-        
         cal_date = '{0}-{1}-{2}'.format(day.year, day.month, day.day)
         cases = self.data.set_index('Meldedatum').loc[cal_date]
         cases = cases.reset_index().set_index("Bundesland")
         cases.loc['Countrywide'] = cases.sum(numeric_only=True, axis=0)
-        cases['Meldedatum'] = cases['Meldedatum'].dt.date
         cases.loc['Countrywide', 'Meldedatum'] = cal_date
         cases = cases.reset_index()
         cases['AnzahlFall_7_tage_100k'] = cases.apply(
@@ -160,7 +171,7 @@ class RKI_covid19:
         cases['R-Wert'] = cases.apply(
             lambda x: self.get_r_value_intervall_7_days(x), axis=1)
         cases = self.clean_bundeslaender(cases)
-     
+        cases = self.check_completeness_of_all_state(cases)
         return cases
 if __name__ == "__main__":
     c = RKI_covid19(update=True)

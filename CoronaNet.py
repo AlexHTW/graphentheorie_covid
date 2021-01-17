@@ -63,7 +63,7 @@ class CoronaNet:
 
 
     def update_offlinedata(self):
-        for day in rrule(DAILY, dtstart = CoronaNet.FIRST_DAY, until=date.today()):
+        for day in rrule(DAILY, dtstart = CoronaNet.FIRST_DAY, until=date.today() - timedelta(days=2)):
             self.load_data_for_day(day.date(), update = True)
 
     def generate_data_for_day(self, day):
