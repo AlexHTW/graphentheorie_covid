@@ -19,11 +19,15 @@ MIN_R_VALUE = 0.5
 MAX_R_VALUE = 1.4
 
 N_COLORS = 50
-COLORS = list(Color("green").range_to(Color("red"), N_COLORS))
+COLORS = list(Color("blue").range_to(Color("red"), N_COLORS))
 COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
 
 TARGET_DATE = date(2021,1,12)#date.today() - timedelta(days=3)
+FIRST_DAY = date(2021, 1, 1)
+
+CoronaNet.FIRST_DAY = FIRST_DAY
+RKI_covid19.FIRST_DAY =FIRST_DAY
 
 CoronaNet.TARGET_DATE = TARGET_DATE
 RKI_covid19.TARGET_DATE = TARGET_DATE
@@ -78,6 +82,9 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     ended_within_2w = cndata[(cndata.timespan == 'ended_within_2w')]
     ended_within_2w_4w = cndata[(cndata.timespan == 'ended_within_2w_4w')]
 
+    if not type(day) is date:
+        day = day.date()
+
     # NODES
 
     # BUNDESLÄNDER
@@ -86,7 +93,6 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         x = 0.25
         y = i * cn.normalized_unit_y_provinces if not node == 'Countrywide' else (
             i + 2) * cn.normalized_unit_y_provinces  # ToDo: Place Countrywide
-        # ToDo: FIX Exceptions -- KeyError: 'Hamburg'
         r_value = cases.loc[node]['R-Wert']
         num_of_infec = cases.loc[node]['AnzahlFall_7_tage_100k']
         nodes_state.append({
@@ -133,22 +139,35 @@ def create_edges_and_nodes(cn, cases_dataset, day):
 
     nodes_measures = []
     # CREATE NODE FOR EACH TYPES / KATEGORIEN
+
     for i_type, node in enumerate(cn.u_types):
         # CREATE NODE FOR EACH SUBTYPES / SUBKATEGORIEN
         row_data = cn.data[(cn.data.type.isin([node]))]
+
+        # print('types...')
+        # print(type(day))
+        # for idx, r in row_data.iterrows():
+        #     print(type(r['date_start']))
+        #     print(type(r['date_end']))
+
         temp_subtypes = get_unique_vals(row_data, 'type_sub_cat')
         base_y = i_type * cn.normalized_unit_y_types  # base y = ypos of Typenode
-        hovertemplate = ''.join(
-            "Introduced from {0} to {1} at {2} <br>".format(
-                r['date_start'],
-                r['date_end'] if pd.isnull(r['date_end']) else "not specified",
-                r['target_province'],
-            )
-            for idx, r in row_data.iterrows())
         for i_subtype, subnode in enumerate(temp_subtypes):
             exists = ((cndata[(cndata.type.isin([node]) & cndata.type_sub_cat.isin(
                 [subnode]))]).shape)[0]  # is there any row containing both values?
             if exists:
+                # hovertext -> Submaßnahmen
+                hovertemplate = ''.join(
+                    "Introduced from {0} to {1} at {2} <br>".format(
+                        r['date_start'],
+                        r['date_end'] if not pd.isna(r['date_end']) else "not specified",
+                        r['target_province'],
+                    )
+                    for idx, r in row_data.drop_duplicates().iterrows()
+                    if (r['date_end'] >= day or pd.isna(r['date_end']))
+                    and r['date_start'] <= day
+                    and r['type_sub_cat'] == subnode
+                )
                 #print(data[(data.type.isin([node]) & data.type_sub_cat.isin([subnode]))])
                 x = 0.35
                 # subtype length unit,
@@ -167,7 +186,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     'y': y,
                     'textpos': "middle right",
                     'color': "#909090",
-                    'hovertext': "<strong>" + subnode + "</strong><br>" + hovertemplate,
+                    'hovertext': subnode + "<br><br>" + hovertemplate,
                     'size': 10 , # ToDo: Entscheiden welche größe subkategorien haben,
                     'name' : 'measures node'
                 })
@@ -176,6 +195,19 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             cndata[(cndata.type.isin([node]))].shape)[0]
         x = 0.70
         y = base_y
+
+        # hovertext -> Maßnahmen
+        hovertemplate = ''.join(
+            "Introduced from {0} to {1} at {2} <br>".format(
+                r['date_start'],
+                r['date_end'] if not pd.isna(r['date_end']) else "not specified",
+                r['target_province'],
+            )
+            for idx, r in row_data.drop_duplicates().iterrows()
+            if (r['date_end'] >= day or pd.isna(r['date_end']))
+            and r['date_start'] <= day
+        )
+
         nodes_measures.append({
             'key': node,
             'type': 'type',
@@ -183,7 +215,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'y': y,
             'textpos': "middle right",
             'color': "black" if exists else "#A0A0A0",
-            'hovertext': "<strong>" + node + "</strong><br>" + hovertemplate,
+            'hovertext': node + "<br><br>" + hovertemplate,
             'size': 30,
         })
 
@@ -204,8 +236,6 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         hoverinfo='name+text',
         hovertext= [node['hovertext'] for node in nodes_measures],
         name = 'measures node',
-
-        #showlegend=,
         marker=dict(
             #showscale=True,
             # colorscale options
