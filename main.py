@@ -274,6 +274,11 @@ def create_graph():
         for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=TARGET_DATE))
     ]
 
+    end = time.time()
+    print('---- time ---')
+    print(end - start)
+    print("----")
+
     fig = go.Figure(
         data=create_edges_and_nodes(cn=cn, cases_dataset=cases_dataset, day = cn.FIRST_DAY),
         layout=go.Layout(
