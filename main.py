@@ -1,19 +1,11 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
-import networkx as nx
-import matplotlib.pyplot as plt
 import numpy as np
-import math
 from datetime import datetime, date, timedelta
 import plotly.graph_objects as go
 from colour import Color
-from pandas import DataFrame
-import requests
-import json
-import random
-from tqdm import tqdm
 
-import difflib
+from tqdm import tqdm
+import time
 
 from CoronaNet import CoronaNet
 from helpers import get_unique_vals
@@ -29,6 +21,11 @@ N_COLORS = 50
 COLORS = list(Color("green").range_to(Color("red"), N_COLORS))
 COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
+
+TARGET_DATE = date(2021,1,12)#date.today() - timedelta(days=3)
+
+CoronaNet.TARGET_DATE = TARGET_DATE
+RKI_covid19.TARGET_DATE = TARGET_DATE
 
 
 def get_color_for_r_value(r_value):
@@ -131,7 +128,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     'y': y,
                     'textpos': "middle right",
                     'color': "#909090",
-                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'], row_data['date_end']),
                     'size': 10  # ToDo: Entscheiden welche größe subkategorien haben
                 })
 
@@ -146,7 +143,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'y': y,
             'textpos': "middle right",
             'color': "black" if exists else "#A0A0A0",
-            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'], row_data['date_end']),
             'size': 30
         })
 
@@ -267,12 +264,14 @@ def create_graph():
     ### PLOTLY ###
     ##############
 
+    start = time.time()
+
     frames = [
         go.Frame(
             data=create_edges_and_nodes(cn=cn, cases_dataset=cases_dataset, day=day),
             name=str(day)
         )
-        for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=date.today() - timedelta(days=2)))
+        for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=TARGET_DATE))
     ]
 
     fig = go.Figure(
@@ -352,7 +351,7 @@ def create_graph():
                                 ],
                             "label": day.strftime('%d/%m/%Y'), # ToDo: label for current day...
                             "method": "animate"
-                        } for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=date.today() - timedelta(days=2)))
+                        } for day in tqdm(rrule(DAILY, dtstart=CoronaNet.FIRST_DAY, until=TARGET_DATE))
                     ]
                 }
             ]

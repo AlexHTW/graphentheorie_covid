@@ -17,7 +17,7 @@ from helpers import get_unique_vals, find_best_match
 
 class CoronaNet:
     FIRST_DAY = date(2020,4,1)
-    TARGET_DATE = date(2020,12, 20) #date.today() - timedelta(days=2)
+    TARGET_DATE = date.today() - timedelta(days=2)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data')
     BUNDESLAENDERNODES = [
         'Baden-Wuerttemberg', 'Bremen', 'Mecklenburg-Vorpommern', 'Bavaria',
@@ -38,7 +38,7 @@ class CoronaNet:
 
     def get_full_container(self, update = False):
         data = None
-        for day in rrule(DAILY, dtstart = CoronaNet.FIRST_DAY, until=date.today()):
+        for day in rrule(DAILY, dtstart = CoronaNet.FIRST_DAY, until=CoronaNet.TARGET_DATE):
             if data is not None:
                 temp = self.load_data_for_day(day.date(), update = update)
                 temp.loc[:, 'day'] = pd.Series([str(day.date())] * temp.shape[0], index=temp.index)
@@ -127,6 +127,22 @@ class CoronaNet:
                 country)
             data = pd.read_csv(url, encoding='iso-8859-1')  # ,error_bad_lines=False)
             # data["province"] = data["province"].str.decode('iso-8859-1').str.encode('utf-8')
+
+            print('data: ')
+            print(data)
+            print('describe target_province')
+            print(data['target_province'].describe(include=[object]))
+            print('describe ')
+            print(data['target_province'].describe(include=[object]))
+            print('unique bundesländer:')
+            print(get_unique_vals(data, 'target_province'))
+            print(len(get_unique_vals(data, 'target_province')))
+            print('unique types:')
+            print(get_unique_vals(data, 'type'))
+            print(len(get_unique_vals(data, 'type')))
+            print('unique type_sub_cats:')
+            print(get_unique_vals(data, 'type_sub_cat'))
+            print(len(get_unique_vals(data, 'type_sub_cat')))
 
             data = self.clean_bundeslaender(data)
 

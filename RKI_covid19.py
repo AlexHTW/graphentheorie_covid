@@ -14,7 +14,8 @@ import requests
 import difflib
 
 class RKI_covid19:
-    FIRST_DAY = date(2020,4,1)
+    FIRST_DAY = date(2020, 4, 1)
+    TARGET_DATE = date.today() - timedelta(days=2)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data_cases')
     CSVPATH = os.path.dirname(__file__)
 
@@ -26,8 +27,14 @@ class RKI_covid19:
             self.update_offlinedata()
 
     def update_csvfile(self):
-        now = datetime.now()
-        filepath = os.path.join(RKI_covid19.CSVPATH, "cases_{0}-{1}-{2}.csv".format(now.year, now.month, now.day))
+        filepath = os.path.join(
+            RKI_covid19.CSVPATH, "cases_{0}-{1}-{2}.csv".format(
+                RKI_covid19.TARGET_DATE.year,
+                RKI_covid19.TARGET_DATE.month,
+                RKI_covid19.TARGET_DATE.day + 1
+            )
+        )
+        #filepath = os.path.join(RKI_covid19.CSVPATH, "cases_2021-1-13.csv") #debug
         print('filepath: {0}'.format(filepath))
         if os.path.isfile(filepath):
             print('covid cases file found')
@@ -125,7 +132,7 @@ class RKI_covid19:
             self.data = data
 
     def update_offlinedata(self):
-        for day in rrule(DAILY, dtstart = self.FIRST_DAY, until=date.today()):
+        for day in rrule(DAILY, dtstart = self.FIRST_DAY, until=RKI_covid19.TARGET_DATE):
             self.load_data_for_day(day.date(), update = True)
 
     def load_data_for_day(self, day, update=False):
