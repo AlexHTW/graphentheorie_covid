@@ -46,13 +46,30 @@ def get_color_for_r_value(r_value):
     return int(round(idx))
     
 
-def get_size_for_number_of_cases(number_of_cases, max_cases):
+def get_size_for_number_of_cases(number_of_cases):
     """
             for given number_of_cases it returns size of node
     """
-    if max_cases == 0:
-        return 0
-    return 30*(number_of_cases / max_cases)
+    i = 0
+    if 0 <= number_of_cases < 10:
+        i = 1
+    elif 10 <= number_of_cases <25:
+        i = 2
+    elif 25 <= number_of_cases < 50:
+        i = 3
+    elif 50 <= number_of_cases < 100:
+        i = 4
+    elif 100 <= number_of_cases < 200:
+        i = 5
+    elif 200 <= number_of_cases < 300:
+        i = 6
+    elif 300 <= number_of_cases <400:
+        i = 7
+    elif 400 <= number_of_cases <500: 
+        i = 8
+
+    size = 10 + i*0.5*5
+    return int(size)
 
 
 def get_node_attr_by_key(nodes, key, attr, subkey=None):
@@ -73,7 +90,7 @@ def get_node_attr_by_key(nodes, key, attr, subkey=None):
 def create_edges_and_nodes(cn, cases_dataset, day):
     cal_date = '{0}-{1}-{2}'.format(day.year, day.month, day.day)
     cases = cases_dataset.load_data_for_day(day).set_index('Bundesland')
-    max_cases = cases['AnzahlFall_7_tage_100k'].max()  # ToDo: not working, because for some days its 0?
+    #max_cases = cases['AnzahlFall_7_tage_100k'].max()  # ToDo: not working, because for some days its 0?
     m_ticktext = np.linspace(cases['R-Wert'].min(), cases['R-Wert'].max(), num=5)
     m_tickvals = [get_color_for_r_value(x) for x in m_ticktext]
     cndata = cn.load_data_for_day(day)
@@ -113,7 +130,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'r_value': r_value,
             'color': get_color_for_r_value(r_value),
             'hovertext': hovertemplate + 'R-Value: {0}<br>Number of cases per 100k population: {1}'.format(r_value, num_of_infec),
-            'size': get_size_for_number_of_cases(num_of_infec, max_cases),
+            'size': get_size_for_number_of_cases(num_of_infec),
         })
     node_trace_state = go.Scatter(
         x=[node['x'] for node in nodes_state],
