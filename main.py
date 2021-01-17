@@ -23,7 +23,7 @@ COLORS = list(Color("blue").range_to(Color("red"), N_COLORS))
 COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
 
-TARGET_DATE = date(2021,1,12)#date.today() - timedelta(days=3)
+TARGET_DATE = date(2021,1,15)#date.today() - timedelta(days=3)
 FIRST_DAY = date(2020, 4, 1)
 
 CoronaNet.FIRST_DAY = FIRST_DAY
@@ -50,6 +50,8 @@ def get_size_for_number_of_cases(number_of_cases, max_cases):
     """
             for given number_of_cases it returns size of node
     """
+    if max_cases == 0:
+        return 0
     return 30*(number_of_cases / max_cases)
 
 
@@ -96,11 +98,11 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         r_value = cases.loc[node]['R-Wert']
         num_of_infec = cases.loc[node]['AnzahlFall_7_tage_100k']
         hovertemplate = "{0}<br>".format(node)
-        hovertemplate += "started withing last 2 weeks: {0}<br>".format(len(started_within_last_2w[(started_within_last_2w.target_province == node)].index))
+        hovertemplate += "started within last 2 weeks: {0}<br>".format(len(started_within_last_2w[(started_within_last_2w.target_province == node)].index))
         hovertemplate += "ongoing between 2 and 4 weeks: {0}<br>".format(len(ongoing_2w_4w[(ongoing_2w_4w.target_province == node)].index))
         hovertemplate += "ongoing since more than 4 weeks: {0}<br>".format(len(ongoing_4w[(ongoing_4w.target_province == node)].index))
-        hovertemplate += "ended in last 2 weeks: {0}<br>".format(len(ended_within_2w[(ended_within_2w.target_province == node)].index))
-        hovertemplate += "ended in last 2 to 4 weeks: {0}<br>".format(len(ended_within_2w_4w[(ended_within_2w_4w.target_province == node)].index))
+        hovertemplate += "ended within last 2 weeks: {0}<br>".format(len(ended_within_2w[(ended_within_2w.target_province == node)].index))
+        hovertemplate += "ended within last 2 to 4 weeks: {0}<br>".format(len(ended_within_2w_4w[(ended_within_2w_4w.target_province == node)].index))
 
         nodes_state.append({
             'key': node,
@@ -316,17 +318,17 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     draw_edges(started_within_last_2w, edges,
                width=0.5, color='#888',  type_name= 'started within last 2 weeks', dash='dash',)
     # ongoing 2 to 4 weeks
-    draw_edges(ongoing_2w_4w, edges, width=0.5, color='#888', type_name= 'ongoing since 2 to 4 weeks')
+    draw_edges(ongoing_2w_4w, edges, width=0.5, color='#888', type_name= 'ongoing between 2 and 4 weeks')
 
     # ongoing 4 weeks or more
     draw_edges(ongoing_4w, edges, width=1, color='#888', type_name= 'ongoing since 4 weeks or more')
 
     # ended within 2 weeks
-    draw_edges(ended_within_2w, edges, width=0.5, color='#e88574', type_name= 'ended within 2 weeks')
+    draw_edges(ended_within_2w, edges, width=0.5, color='#e88574', type_name= 'ended within last 2 weeks')
 
     # ended within 2 to 4 weeks
     draw_edges(ended_within_2w_4w, edges, width=0.5,
-               color='#e88574', type_name= 'ended within 2 to 4 weeks', dash='dash')
+               color='#e88574', type_name= 'ended within last 2 to 4 weeks', dash='dash')
 
     return [node_trace_state, node_trace_measures, *edges]
 

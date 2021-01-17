@@ -21,7 +21,7 @@ class RKI_covid19:
         'Thuringia', 'Berlin','Brandenburg', 'Countrywide'
     ]
     FIRST_DAY = date(2020, 4, 1)
-    TARGET_DATE = date.today() - timedelta(days=2)
+    #TARGET_DATE = date.today() - timedelta(days=2)
     DATADIRPATH = os.path.join(os.path.dirname(__file__), 'data_cases')
     CSVPATH = os.path.dirname(__file__)
 
@@ -37,7 +37,7 @@ class RKI_covid19:
             RKI_covid19.CSVPATH, "cases_{0}-{1}-{2}.csv".format(
                 RKI_covid19.TARGET_DATE.year,
                 RKI_covid19.TARGET_DATE.month,
-                RKI_covid19.TARGET_DATE.day + 1
+                RKI_covid19.TARGET_DATE.day + 2
             )
         )
         #filepath = os.path.join(RKI_covid19.CSVPATH, "cases_2021-1-13.csv") #debug
