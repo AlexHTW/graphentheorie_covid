@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta
 import plotly.graph_objects as go
 from colour import Color
 
+import pandas as pd
 from tqdm import tqdm
 import time
 
@@ -137,6 +138,13 @@ def create_edges_and_nodes(cn, cases_dataset, day):
         row_data = cn.data[(cn.data.type.isin([node]))]
         temp_subtypes = get_unique_vals(row_data, 'type_sub_cat')
         base_y = i_type * cn.normalized_unit_y_types  # base y = ypos of Typenode
+        hovertemplate = ''.join(
+            "Introduced from {0} to {1} at {2} <br>".format(
+                r['date_start'],
+                r['date_end'] if pd.isnull(r['date_end']) else "not specified",
+                r['target_province'],
+            )
+            for idx, r in row_data.iterrows())
         for i_subtype, subnode in enumerate(temp_subtypes):
             exists = ((cndata[(cndata.type.isin([node]) & cndata.type_sub_cat.isin(
                 [subnode]))]).shape)[0]  # is there any row containing both values?
@@ -159,7 +167,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
                     'y': y,
                     'textpos': "middle right",
                     'color': "#909090",
-                    'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+                    'hovertext': "<strong>" + subnode + "</strong><br>" + hovertemplate,
                     'size': 10 , # ToDo: Entscheiden welche größe subkategorien haben,
                     'name' : 'measures node'
                 })
@@ -175,7 +183,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'y': y,
             'textpos': "middle right",
             'color': "black" if exists else "#A0A0A0",
-            'hovertext':'started : {0}<br>ended : {1}'.format(row_data['date_start'],row_data['date_end']),
+            'hovertext': "<strong>" + node + "</strong><br>" + hovertemplate,
             'size': 30,
         })
 
