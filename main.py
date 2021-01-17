@@ -15,8 +15,8 @@ from RKI_covid19 import RKI_covid19
 
 THIN_EDGE = 0.3
 THICK_EDGE = 3
-MIN_R_VALUE = 0.5
-MAX_R_VALUE = 1.4
+MIN_R_VALUE = 0.0
+MAX_R_VALUE = 3
 
 N_COLORS = 50
 COLORS = list(Color("blue").range_to(Color("red"), N_COLORS))
@@ -24,7 +24,7 @@ COLORSCALE = [((i / N_COLORS), color.get_hex())
               for i, color in enumerate(COLORS)]
 
 TARGET_DATE = date(2021,1,12)#date.today() - timedelta(days=3)
-FIRST_DAY = date(2021, 1, 1)
+FIRST_DAY = date(2020, 4, 1)
 
 CoronaNet.FIRST_DAY = FIRST_DAY
 RKI_covid19.FIRST_DAY =FIRST_DAY
@@ -95,6 +95,13 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             i + 2) * cn.normalized_unit_y_provinces  # ToDo: Place Countrywide
         r_value = cases.loc[node]['R-Wert']
         num_of_infec = cases.loc[node]['AnzahlFall_7_tage_100k']
+        hovertemplate = "{0}<br>".format(node)
+        hovertemplate += "started withing last 2 weeks: {0}<br>".format(len(started_within_last_2w[(started_within_last_2w.target_province == node)].index))
+        hovertemplate += "ongoing between 2 and 4 weeks: {0}<br>".format(len(ongoing_2w_4w[(ongoing_2w_4w.target_province == node)].index))
+        hovertemplate += "ongoing since more than 4 weeks: {0}<br>".format(len(ongoing_4w[(ongoing_4w.target_province == node)].index))
+        hovertemplate += "ended in last 2 weeks: {0}<br>".format(len(ended_within_2w[(ended_within_2w.target_province == node)].index))
+        hovertemplate += "ended in last 2 to 4 weeks: {0}<br>".format(len(ended_within_2w_4w[(ended_within_2w_4w.target_province == node)].index))
+
         nodes_state.append({
             'key': node,
             'type': 'province',
@@ -103,7 +110,7 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             'textpos': "middle left",
             'r_value': r_value,
             'color': get_color_for_r_value(r_value),
-            'hovertext': 'R-Value: {0}<br>Number of cases per 100k population: {1}'.format(r_value, num_of_infec),
+            'hovertext': hovertemplate + 'R-Value: {0}<br>Number of cases per 100k population: {1}'.format(r_value, num_of_infec),
             'size': get_size_for_number_of_cases(num_of_infec, max_cases),
         })
     node_trace_state = go.Scatter(
