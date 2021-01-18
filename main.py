@@ -91,15 +91,15 @@ def create_edges_and_nodes(cn, cases_dataset, day):
     cal_date = '{0}-{1}-{2}'.format(day.year, day.month, day.day)
     cases = cases_dataset.load_data_for_day(day).set_index('Bundesland')
     #max_cases = cases['AnzahlFall_7_tage_100k'].max()  # ToDo: not working, because for some days its 0?
-    m_ticktext = np.linspace(cases['R-Wert'].min(), cases['R-Wert'].max(), num=5)
+    m_ticktext = np.linspace(0, 2, num=30)
     m_tickvals = [get_color_for_r_value(x) for x in m_ticktext]
     cndata = cn.load_data_for_day(day)
     cndata.dropna(thresh=2, inplace=True)
-    started_within_last_2w = cndata[(cndata.timespan == 'started_within_last_2w')]
-    ongoing_2w_4w = cndata[(cndata.timespan == 'ongoing_2w_4w')]
-    ongoing_4w = cndata[(cndata.timespan == 'ongoing_4w')]
-    ended_within_2w = cndata[(cndata.timespan == 'ended_within_2w')]
-    ended_within_2w_4w = cndata[(cndata.timespan == 'ended_within_2w_4w')]
+    started_within_last_2w = cndata[(cndata.timespan == 'started_within_last_2w')].drop_duplicates(subset=['target_province', 'type_sub_cat', 'type'], keep='first')
+    ongoing_2w_4w = cndata[(cndata.timespan == 'ongoing_2w_4w')].drop_duplicates().drop_duplicates(subset=['target_province', 'type_sub_cat', 'type'], keep='first')
+    ongoing_4w = cndata[(cndata.timespan == 'ongoing_4w')].drop_duplicates().drop_duplicates(subset=['target_province', 'type_sub_cat', 'type'], keep='first')
+    ended_within_2w = cndata[(cndata.timespan == 'ended_within_2w')].drop_duplicates().drop_duplicates(subset=['target_province', 'type_sub_cat', 'type'], keep='first')
+    ended_within_2w_4w = cndata[(cndata.timespan == 'ended_within_2w_4w')].drop_duplicates().drop_duplicates(subset=['target_province', 'type_sub_cat', 'type'], keep='first')
 
     if not type(day) is date:
         day = day.date()
@@ -148,17 +148,20 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
             # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
             # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            colorscale=COLORSCALE,
+            colorscale=COLORSCALE,#'Portland',
             reversescale=True,
-            color=[node['color'] for node in nodes_state],
+            autocolorscale=False,
+            cmin=0.2,
+            cmax=2.5,
+            color=[node['r_value'] for node in nodes_state],
             size=[node['size'] for node in nodes_state],
             colorbar=dict(
                 thickness=15,
                 title='R Value',
                 xanchor='left',
                 titleside='right',
-                tickvals= m_tickvals,
-                ticktext= [round(x,3) for x in m_ticktext]
+                # tickvals= m_tickvals,
+                # ticktext= [round(x,1) for x in m_ticktext]
             ),
             line_width=2)
     )
@@ -268,11 +271,11 @@ def create_edges_and_nodes(cn, cases_dataset, day):
             # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
             # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
             # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            #colorscale=COLORSCALE,
-            #reversescale=True,
+            colorscale=COLORSCALE,
+            reversescale=True,
             color=[node['color'] for node in nodes_measures],
             size=[node['size'] for node in nodes_measures],
-            line_width=2
+            line_width=2,
             )
     )
 
@@ -394,8 +397,8 @@ def create_graph():
                 {
                     "buttons": [
                         {
-                            "args": [None, {"frame": {"duration": 500, "redraw": False},
-                                            "fromcurrent": True, "transition": {"duration": 300,
+                            "args": [None, {"frame": {"duration": 200, "redraw": False},
+                                            "fromcurrent": True, "transition": {"duration": 100,
                                                                                 "easing": "quadratic-in-out"}}],
                             "label": "Play",
                             "method": "animate"
